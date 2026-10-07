@@ -388,3 +388,23 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
   engine did not produce, because a buyer reading "ordered 250" when 240 was ordered is a real failure.
   Explanation *quality* (clarity, naming the binding constraint) is judged separately in the P6 evals against a
   rubric; grounding is enforced here, deterministically.
+
+## D27. A thin HTTP API over the runner; runs execute in the background
+
+- **Decision:** `app/api.py` exposes:
+  - `GET /api/scenarios`
+  - `POST /api/runs`, `GET /api/runs`, `GET /api/runs/{id}` (with the full step trace)
+  - `GET /api/approvals`, `POST /api/approvals/{id}`
+  - `GET /api/purchase-orders` (with status history)
+  - `GET /api/workspace`
+
+  Starting a run seeds the scenario and returns `202` with the run id; the agent then runs in a background task
+  with its own session, committing each step, so the UI can poll the trace live. Answering an approval also
+  returns `202` and resumes the run in the background. `app/runner.py` holds the start/continue logic, so the eval
+  runner (P6) uses exactly the same path. A misconfigured provider is rejected with `400` *before* the workspace
+  is reset.
+- **Safety in tests:** an autouse fixture gives every test settings that ignore `.env`. A developer's real key or
+  `LLM_PROVIDER=gemini` can never make the test suite call a paid or rate-limited API.
+- **App factory:** `uvicorn app.main:create_app --factory`, so importing the module creates no database file.
+- **Why not WebSockets/SSE:** polling a run every second is enough for a demo, has no extra moving parts, and
+  works the same in scripted and real-LLM mode.
