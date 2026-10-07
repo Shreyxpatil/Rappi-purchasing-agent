@@ -61,6 +61,13 @@ def get_product(s: Session, sku: str) -> Product:
     return p
 
 
+def get_po(s: Session, po_id: str) -> PurchaseOrder:
+    po = s.get(PurchaseOrder, po_id)
+    if po is None:
+        raise ToolError("NOT_FOUND", f"unknown PO {po_id}", {"po_id": po_id})
+    return po
+
+
 def get_inventory_row(s: Session, node_id: str, sku: str) -> Inventory:
     get_node(s, node_id)  # an unknown id is the caller's mistake (NOT_FOUND), not missing business data
     get_product(s, sku)

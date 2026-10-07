@@ -267,3 +267,21 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
   quantities). That makes prompt injection a *testable* attack: an obeying model can try `qty: 10000`, and the gate
   blocks it with `DECISION_BINDING_MISMATCH`. That separation is what lets the evals report `model_resisted` and
   `system_safe` independently (D10).
+
+## D20. Action tools: idempotent, re-validated, gated, audited
+
+- **Decision:** Every action tool takes an `idempotency_key`. The first response is stored in `idempotency_keys`:
+  - the same key with the same request replays that response (`replayed: true`);
+  - the same key with a different request is `IDEMPOTENCY_CONFLICT`.
+
+  Every action re-runs `validate_po` against current data *at the moment of acting* (the pre-action layer), then
+  passes the gate. Blocked attempts are audited with the attempted arguments, which is what the `model_resisted`
+  eval check reads. Each BLOCK counts toward the validation-failure limit; the second one escalates.
+- **Approvals:** created by the gate's verdict, not by the model choosing to ask. A model that "forgets" to request
+  approval cannot slip past it. A purchase approval stores the exact action to execute and the side-by-side
+  alternatives (D11). Rejecting it removes that option, and any budget override it needed, for the rest of the run.
+- **Partial fills:** reducing a line to exactly the confirmed quantity is an acknowledgement (auto, releases budget
+  commitment). The under-delivering supplier stays excluded from new purchases for the whole run; without that,
+  it reappeared as an option once its PO no longer looked partial.
+- **Budget commitment:** submitting a PO adds its value to `committed`. Acknowledgements and cancellations release
+  it, so later checks in the same run see the real remaining budget.

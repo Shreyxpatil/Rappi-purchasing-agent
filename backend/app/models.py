@@ -325,6 +325,8 @@ class Approval(Base):
     reasons: Mapped[list[str]] = mapped_column(JSON)  # policy reason codes, e.g. ALTERNATE_SUPPLIER
     action: Mapped[dict[str, Any]] = mapped_column(JSON)  # the exact action that will run if approved
     summary: Mapped[str] = mapped_column(Text)
+    # Options shown side by side so the approver sees the cost of saying no (decision D11).
+    alternatives: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     status: Mapped[str] = mapped_column(String(16), default="PENDING")  # PENDING | APPROVED | REJECTED
     requested_at: Mapped[datetime] = mapped_column(DateTime)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime)
@@ -345,3 +347,16 @@ class AuditLog(Base):
     entity_id: Mapped[str] = mapped_column(String(48))
     run_id: Mapped[int | None] = mapped_column(Integer)
     details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class IdempotencyRecord(Base):
+    """First response of every action, keyed by the caller's idempotency key: a retry replays it."""
+
+    __tablename__ = "idempotency_keys"
+
+    key: Mapped[str] = mapped_column(String(120), primary_key=True)
+    tool: Mapped[str] = mapped_column(String(40))
+    request: Mapped[dict[str, Any]] = mapped_column(JSON)
+    response: Mapped[dict[str, Any]] = mapped_column(JSON)
+    run_id: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime)

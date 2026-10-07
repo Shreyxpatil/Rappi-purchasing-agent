@@ -18,6 +18,7 @@ from app.fixtures import ScenarioFixture
 from app.models import (
     Budget,
     Forecast,
+    IdempotencyRecord,
     Inventory,
     Node,
     POEvent,
@@ -38,7 +39,7 @@ CATALOG_PATH = Path(__file__).parent / "seed_data" / "catalog.json"
 
 # Child tables first so foreign keys are never violated.
 _DOMAIN_TABLES = [
-    POEvent, POLine, PurchaseOrder, StockTransfer, Recommendation, SalesDaily, Forecast, Inventory,
+    IdempotencyRecord, POEvent, POLine, PurchaseOrder, StockTransfer, Recommendation, SalesDaily, Forecast, Inventory,
     Promotion, StorageCapacity, Budget, SupplierProduct, Supplier, Product, Node, Workspace,
 ]
 

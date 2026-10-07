@@ -16,6 +16,7 @@ def session() -> Session:
 def tool_ctx():
     """Factory: seed a scenario into a fresh in-memory DB and return a ToolContext for it."""
     from app.fixtures import load_fixture
+    from app.models import AgentRun
     from app.policy import get_policy
     from app.seed import seed_workspace
     from app.tools.registry import RunState, ToolContext
@@ -29,8 +30,11 @@ def tool_ctx():
         sessions.append(s)
         fx = load_fixture(fixture_id)
         clock = seed_workspace(s, fx)
+        run = AgentRun(scenario_id=fx.id, provider="test", trigger=fx.trigger.model_dump(), status="RUNNING",
+                       state="INVESTIGATE", started_at=clock.now())
+        s.add(run)
         s.commit()
-        return ToolContext(session=s, clock=clock, policy=get_policy(),
+        return ToolContext(session=s, clock=clock, policy=get_policy(), run_id=run.id,
                            state=RunState(trigger=fx.trigger.model_dump()))
 
     yield make

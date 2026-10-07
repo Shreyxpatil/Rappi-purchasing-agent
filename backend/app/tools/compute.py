@@ -112,6 +112,11 @@ def build_options_input(ctx: ToolContext, node: str, sku: str, basis: DemandBasi
     p = data.get_product(s, sku)
     inv = data.get_inventory_row(s, node, sku)
     trigger_po = ctx.state.trigger.get("po_id")
+    excluded = list(ctx.state.excluded_suppliers)
+    if ctx.state.trigger.get("type") == "supplier_response" and trigger_po:
+        # The supplier that just under-delivered stays out of new purchases for the whole run, even after its
+        # partial has been acknowledged (the PO is then CONFIRMED and no longer looks partial).
+        excluded.append(data.get_po(s, trigger_po).supplier_id)
     return OptionsInput(
         forecast=basis_forecast(ctx, node, sku, basis), on_hand=inv.on_hand, reserved=inv.reserved,
         receipts=data.receipts(s, clock, node, sku), review_period_days=p.review_period_days,
@@ -122,7 +127,7 @@ def build_options_input(ctx: ToolContext, node: str, sku: str, basis: DemandBasi
         open_lines=data.open_lines(s, clock, node, sku, exclude_po=trigger_po),
         transfer_sources=data.transfer_sources(s, clock, node, sku),
         transfer_lead_days=ctx.policy.transfer_lead_days, accept_tolerance_pct=ctx.policy.accept_tolerance_pct,
-        excluded_suppliers=ctx.state.excluded_suppliers, excluded_option_ids=ctx.state.excluded_option_ids,
+        excluded_suppliers=sorted(set(excluded)), excluded_option_ids=ctx.state.excluded_option_ids,
         refused_overrides=ctx.state.refused_overrides,
     )
 
