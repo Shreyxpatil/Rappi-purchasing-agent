@@ -57,3 +57,27 @@ def test_idempotency_key_is_unique(session) -> None:
                                   created_at=NOW, updated_at=NOW))
     with pytest.raises(IntegrityError):
         session.flush()
+
+
+def test_agent_run_keeps_ordered_steps(session) -> None:
+    from app.models import AgentRun, AgentStep
+
+    run = AgentRun(scenario_id="s1", provider="scripted", trigger={"type": "x"}, status="RUNNING",
+                   state="INTAKE", started_at=NOW)
+    run.steps.append(AgentStep(seq=2, state="INVESTIGATE", kind="tool", name="get_inventory", created_at=NOW))
+    run.steps.append(AgentStep(seq=1, state="INTAKE", kind="transition", name="start", created_at=NOW))
+    session.add(run)
+    session.commit()
+    session.expire_all()
+
+    assert [s.seq for s in session.get(AgentRun, run.id).steps] == [1, 2]
+
+
+def test_budget_is_unique_per_category_currency_period(session) -> None:
+    from app.models import Budget
+
+    for _ in range(2):
+        session.add(Budget(category="dairy", currency="COP", period="2026-10", limit_amount=1,
+                           committed=0, spent=0, updated_at=NOW))
+    with pytest.raises(IntegrityError):
+        session.flush()

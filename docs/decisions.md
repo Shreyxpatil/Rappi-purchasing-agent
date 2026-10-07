@@ -26,3 +26,23 @@ are recorded here too.
 - **Alternatives:** Not storing free text at all.
 - **Why:** Real supplier channels carry free text, and that text is a prompt-injection vector. The eval suite has a
   case for it. Tools return such text in an `untrusted_text` field.
+
+## D4. Storage is checked per temperature zone, assuming other SKUs stay flat
+
+- **Decision:** `storage_capacity` stores `capacity_units` and the zone's current `used_units` per node and zone.
+  Free space for a SKU on its arrival day is computed as:
+
+  ```
+  free_for_sku_at_arrival = capacity − (used_units − sku_on_hand_now) − sku_projected_level_at_arrival
+  ```
+
+- **Alternatives:** Projecting every SKU in the zone (needs every SKU's forecast and open POs); per-SKU slot
+  allocations.
+- **Why:** Hand-computable, and it captures the constraint that matters: the zone is shared and chilled space is scarce.
+  The assumption that other SKUs' occupancy stays constant until arrival is stated in every storage factor the agent reports.
+
+## D5. Budgets are per category × currency × month
+
+- **Decision:** `remaining = limit − committed − spent`. A PO counts against the month of its creation date.
+- **Why:** This matches how category buyers usually hold budgets. Currency is part of the key because Bogotá (COP)
+  and CDMX (MXN) nodes are never mixed.

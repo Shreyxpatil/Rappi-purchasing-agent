@@ -206,3 +206,142 @@ class StockTransfer(Base):
     idempotency_key: Mapped[str | None] = mapped_column(String(80), unique=True)
     run_id: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+# --------------------------------------------------------------------------- constraints
+
+
+class Budget(Base):
+    """Purchasing budget per category, currency and month. remaining = limit - committed - spent."""
+
+    __tablename__ = "budgets"
+    __table_args__ = (UniqueConstraint("category", "currency", "period"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    category: Mapped[str] = mapped_column(String(40))
+    currency: Mapped[str] = mapped_column(String(3))
+    period: Mapped[str] = mapped_column(String(7))  # YYYY-MM
+    limit_amount: Mapped[float] = mapped_column(Float)
+    committed: Mapped[float] = mapped_column(Float)  # open POs not yet invoiced
+    spent: Mapped[float] = mapped_column(Float)  # invoiced
+    updated_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class StorageCapacity(Base):
+    """Physical capacity of one temperature zone at one node, in sellable units.
+
+    used_units is the zone's current total occupancy across all SKUs.
+    """
+
+    __tablename__ = "storage_capacity"
+    __table_args__ = (UniqueConstraint("node_id", "temp_zone"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    node_id: Mapped[str] = mapped_column(ForeignKey("nodes.id"))
+    temp_zone: Mapped[str] = mapped_column(String(16))
+    capacity_units: Mapped[int] = mapped_column(Integer)
+    used_units: Mapped[int] = mapped_column(Integer)
+    updated_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class Promotion(Base):
+    __tablename__ = "promotions"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    node_id: Mapped[str] = mapped_column(ForeignKey("nodes.id"))
+    sku: Mapped[str] = mapped_column(ForeignKey("products.sku"))
+    start_day: Mapped[date] = mapped_column(Date)
+    end_day: Mapped[date] = mapped_column(Date)  # inclusive
+    uplift_pct: Mapped[float] = mapped_column(Float)  # expected demand uplift, e.g. 50.0
+    description: Mapped[str] = mapped_column(String(200))
+
+
+# --------------------------------------------------------------------------- workspace & agent trace
+
+
+class Workspace(Base):
+    """Single row describing which scenario is loaded and the scenario clock."""
+
+    __tablename__ = "workspace"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scenario_id: Mapped[str] = mapped_column(String(64))
+    as_of: Mapped[datetime] = mapped_column(DateTime)
+    seeded_at: Mapped[datetime] = mapped_column(DateTime)
+    # Scenario-scoped settings consumed by services, e.g. the mock supplier's scripted responses.
+    config: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class AgentRun(Base):
+    __tablename__ = "agent_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scenario_id: Mapped[str] = mapped_column(String(64))
+    provider: Mapped[str] = mapped_column(String(24))
+    trigger: Mapped[dict[str, Any]] = mapped_column(JSON)
+    # RUNNING | AWAITING_APPROVAL | COMPLETED | ESCALATED | FAILED | SUPERSEDED
+    status: Mapped[str] = mapped_column(String(24))
+    state: Mapped[str] = mapped_column(String(24))  # current state-machine state
+    replan_count: Mapped[int] = mapped_column(Integer, default=0)
+    decision: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    narrative: Mapped[str | None] = mapped_column(Text)
+    context: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)  # loop memory needed to resume
+    started_at: Mapped[datetime] = mapped_column(DateTime)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    steps: Mapped[list["AgentStep"]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", order_by="AgentStep.seq"
+    )
+
+
+class AgentStep(Base):
+    """One observable step: a state transition, LLM call, tool call, validation or supplier event."""
+
+    __tablename__ = "agent_steps"
+    __table_args__ = (UniqueConstraint("run_id", "seq"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("agent_runs.id"))
+    seq: Mapped[int] = mapped_column(Integer)
+    state: Mapped[str] = mapped_column(String(24))
+    kind: Mapped[str] = mapped_column(String(24))  # transition | llm | tool | validation | policy | supplier | error
+    name: Mapped[str] = mapped_column(String(64))
+    input: Mapped[Any] = mapped_column(JSON, default=dict)
+    output: Mapped[Any] = mapped_column(JSON, default=dict)
+    ok: Mapped[bool] = mapped_column(default=True)
+    latency_ms: Mapped[int] = mapped_column(Integer, default=0)
+    tokens_in: Mapped[int | None] = mapped_column(Integer)
+    tokens_out: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+
+    run: Mapped[AgentRun] = relationship(back_populates="steps")
+
+
+class Approval(Base):
+    __tablename__ = "approvals"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("agent_runs.id"))
+    reasons: Mapped[list[str]] = mapped_column(JSON)  # policy reason codes, e.g. ALTERNATE_SUPPLIER
+    action: Mapped[dict[str, Any]] = mapped_column(JSON)  # the exact action that will run if approved
+    summary: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16), default="PENDING")  # PENDING | APPROVED | REJECTED
+    requested_at: Mapped[datetime] = mapped_column(DateTime)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime)
+    decided_by: Mapped[str | None] = mapped_column(String(60))
+    comment: Mapped[str | None] = mapped_column(Text)
+
+
+class AuditLog(Base):
+    """Append-only record of every state-changing action, by any actor."""
+
+    __tablename__ = "audit_log"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime)
+    actor: Mapped[str] = mapped_column(String(24))  # agent | human | supplier | system
+    action: Mapped[str] = mapped_column(String(48))
+    entity: Mapped[str] = mapped_column(String(32))
+    entity_id: Mapped[str] = mapped_column(String(48))
+    run_id: Mapped[int | None] = mapped_column(Integer)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
