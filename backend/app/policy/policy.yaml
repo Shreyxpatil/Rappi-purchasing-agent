@@ -1,0 +1,41 @@
+# Purchasing policy: every threshold the agent and the gate use lives here, and only here.
+# Changing a number here changes behaviour everywhere (tools, gate, evals) with no code change.
+
+version: 1
+
+# A recommendation is "right" if within this % of the agent's own quantity (and it passes every check).
+accept_tolerance_pct: 10
+
+# POs at or below this value may execute without a human (per currency).
+auto_execute_max_value:
+  COP: 3000000
+  MXN: 15000
+
+# Unit price above the primary supplier's by more than this % needs approval.
+price_variance_pct: 5
+
+# Data older than this (hours, on the scenario clock) is stale.
+freshness_limits_hours:
+  inventory: 24
+  sales: 24
+  forecast: 48
+  storage: 24
+  budget: 24
+  supplier_terms: 720
+
+# Feedback loop limits.
+max_replans: 3
+max_validation_failures: 2
+
+# Intra-city stock transfer lead time (days).
+transfer_lead_days: 1
+
+# Demand-shift evidence bar (decision D13).
+demand_shift:
+  recent_days: 7
+  elevated_pct: 25
+  sustained_min_days: 5
+  bulk_share: 0.5
+
+# Supplier reliability update after each fill outcome: new = (1 - alpha) * old + alpha * fill_rate.
+reliability_ewma_alpha: 0.2
