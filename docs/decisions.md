@@ -371,3 +371,20 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
 - **Why:** One small client covers Groq, OpenRouter, local vLLM and Ollama alike, with no extra dependency or
   abstraction to explain.
 - **Status:** covered by offline tests against a mock transport. A live check needs a Groq key and is optional.
+
+## D26. The narrative is checked against the decision before a buyer sees it
+
+- **Decision:** In REPORT the model gets the structured decision and execution facts as compact JSON, with an
+  instruction to use only those numbers. `agent/narrative.py` then extracts every number from the text and
+  rejects any that appear in neither source, with two allowances:
+  - identifiers such as `PO-1002` or `COCA-1.5L` are removed first;
+  - small counts from 0 to 10 are allowed.
+
+  On failure the model gets one retry, told exactly which numbers were invented. If that fails too, a
+  deterministic template built from the decision is used. The source is recorded (`model`, `model_retry`,
+  `template`), and so is every check, as a `narrative_check` step.
+- **Alternatives:** Trusting the model's prose; an LLM judge at run time.
+- **Why:** The decision is made by code. The narrative may explain it but must never introduce a figure the
+  engine did not produce, because a buyer reading "ordered 250" when 240 was ordered is a real failure.
+  Explanation *quality* (clarity, naming the binding constraint) is judged separately in the P6 evals against a
+  rubric; grounding is enforced here, deterministically.

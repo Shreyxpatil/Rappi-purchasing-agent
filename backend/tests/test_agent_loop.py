@@ -1,37 +1,7 @@
-import json
-
-import pytest
 from sqlalchemy import select
 
-from app.agent.loop import PurchasingAgent
-from app.db import create_schema, make_engine, make_session_factory
-from app.fixtures import load_fixture
-from app.llm.scripted import ScriptedClient
 from app.models import Approval, PurchaseOrder
-from app.seed import seed_workspace
-
-
-@pytest.fixture
-def run_case():
-    sessions = []
-
-    def run(case_id: str, turns: list | None = None):
-        engine = make_engine("sqlite://")
-        create_schema(engine)
-        s = make_session_factory(engine)()
-        sessions.append(s)
-        fx = load_fixture(case_id)
-        seed_workspace(s, fx)
-        s.commit()
-        llm = ScriptedClient(turns, label=case_id) if turns is not None else ScriptedClient.for_case(case_id)
-        agent = PurchasingAgent(s, llm)
-        r = agent.start(fx.id, fx.trigger.model_dump())
-        agent.run(r)
-        return agent, r, s, fx
-
-    yield run
-    for s in sessions:
-        s.close()
+from fixture_inputs import script_turns
 
 
 def _transitions(run):
@@ -130,19 +100,15 @@ def test_action_tools_are_not_available_while_investigating(run_case) -> None:
 
 
 def test_stale_data_blocks_acting_and_forces_investigation(run_case) -> None:
-    script = json.loads(open("evals/scripts/s1_stale_inventory.json").read())["turns"]
+    script = script_turns("s1_stale_inventory")
     turns = script[:2] + [{"tool_calls": [{"name": "propose_decision", "args": {"option_id": "NO_ACTION"}}]}]
     _, run, _, _ = run_case("s1_stale_inventory", turns)
     assert _tool_errors(run) == [("propose_decision", "DATA_BLOCKS_DECISION")]
 
 
-def _script(case_id):
-    return json.loads(open(f"evals/scripts/{case_id}.json").read())["turns"]
-
-
 def test_one_malformed_call_gets_the_schema_error_and_the_run_recovers(run_case) -> None:
     bad = {"tool_calls": [{"name": "get_inventory", "args": {"node": "BOG-01"}}]}  # sku missing
-    _, run, _, _ = run_case("s1_overstock", [bad] + _script("s1_overstock"))
+    _, run, _, _ = run_case("s1_overstock", [bad] + script_turns("s1_overstock"))
     err = next(st for st in run.steps if st.kind == "tool" and not st.ok)
     assert err.output["error"]["code"] == "INVALID_ARGUMENTS"
     assert err.output["error"]["details"]["errors"] == [{"loc": "sku", "msg": "Field required"}]

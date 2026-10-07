@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agent import prompts
+from app.agent.narrative import template_narrative, ungrounded_numbers
 from app.agent.control import CONTROL_TOOLS, FinishExecutionArgs, ProposeDecisionArgs
 from app.agent.persistence import Recorder, load_context
 from app.agent.states import ALLOWED_TOOLS, MAX_TURNS, REQUIRED_EVIDENCE, RunStatus, State
@@ -178,14 +179,34 @@ class PurchasingAgent:
         if d is None:  # escalated before any decision (e.g. turn limit)
             r.run.narrative = "Escalated before a decision was reached; see the trace."
         else:
-            r.messages.append(Message(role="user", content=prompts.report_message(d, self._execution_facts(r))))
-            resp = self._model_turn(r, tools=False)
-            if resp is None:
+            facts = self._execution_facts(r)
+            narrative = self._grounded_narrative(r, d, facts)
+            if narrative is None:
                 return
-            r.run.narrative = resp.text.strip()
+            r.run.narrative = narrative
         r.run.status = RunStatus.ESCALATED if r.ctx.state.escalated else RunStatus.COMPLETED
         r.run.finished_at = r.ctx.clock.now()
         r.rec.transition(State.DONE, r.run.status)
+
+    def _grounded_narrative(self, r: _Run, decision: dict[str, Any], facts: dict[str, Any]) -> str | None:
+        """Ask the model to explain the decision; accept it only if every number is grounded (one retry)."""
+        r.messages.append(Message(role="user", content=prompts.report_message(decision, facts)))
+        for attempt in (1, 2):
+            resp = self._model_turn(r, tools=False)
+            if resp is None:
+                return None
+            text = resp.text.strip()
+            bad = ungrounded_numbers(text, decision, facts)
+            r.rec.step("narrative_check", "grounded" if text and not bad else "ungrounded",
+                       {"attempt": attempt}, {"ungrounded_numbers": bad, "empty": not text}, ok=bool(text) and not bad)
+            if text and not bad:
+                r.extra["narrative_source"] = "model" if attempt == 1 else "model_retry"
+                return text
+            r.messages.append(Message(role="user", content=(
+                f"These numbers are not in the decision: {bad}. Rewrite using only numbers from the JSON above."
+                if text else "The explanation was empty. Write it now.")))
+        r.extra["narrative_source"] = "template"
+        return template_narrative(decision, facts)
 
     # ------------------------------------------------------------------ decision & execution checks
 

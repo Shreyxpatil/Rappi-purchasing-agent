@@ -199,3 +199,9 @@ def options_input(fx: ScenarioFixture, *, basis: list[float] | None = None, **ov
     )
     fields.update(overrides)
     return OptionsInput(**fields)
+
+
+def script_turns(case_id: str) -> list[dict]:
+    from app.llm.scripted import SCRIPTS_DIR
+
+    return json.loads((SCRIPTS_DIR / f"{case_id}.json").read_text(encoding="utf-8"))["turns"]

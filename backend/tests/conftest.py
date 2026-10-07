@@ -40,3 +40,32 @@ def tool_ctx():
     yield make
     for s in sessions:
         s.close()
+
+
+@pytest.fixture
+def run_case():
+    """Factory: seed a case in a fresh DB and run the agent with its script (or the given turns)."""
+    from app.agent.loop import PurchasingAgent
+    from app.fixtures import load_fixture
+    from app.llm.scripted import ScriptedClient
+    from app.seed import seed_workspace
+
+    sessions = []
+
+    def run(case_id: str, turns: list | None = None):
+        engine = make_engine("sqlite://")
+        create_schema(engine)
+        s = make_session_factory(engine)()
+        sessions.append(s)
+        fx = load_fixture(case_id)
+        seed_workspace(s, fx)
+        s.commit()
+        llm = ScriptedClient(turns, label=case_id) if turns is not None else ScriptedClient.for_case(case_id)
+        agent = PurchasingAgent(s, llm)
+        r = agent.start(fx.id, fx.trigger.model_dump())
+        agent.run(r)
+        return agent, r, s, fx
+
+    yield run
+    for s in sessions:
+        s.close()
