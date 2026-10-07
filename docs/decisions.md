@@ -235,3 +235,15 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
   numbers that compute tools feed the engine.
 - **Sales since the count:** this includes the count's own calendar day. That is conservative: it slightly
   over-estimates depletion, which is the safer direction for deciding whether stale data matters.
+
+## D18. The evidence bar for reacting to demand is enforced in code
+
+- **Decision:** The agent picks the demand basis (`forecast`, `recent_run_rate`, `promo_adjusted`), but
+  `recent_run_rate` is refused with `INSUFFICIENT_EVIDENCE` unless `detect_demand_shift` classified the change as
+  `SUSTAINED_SHIFT`. The error carries the classification and the bulk and promo days, so the agent can explain
+  why it is not reacting.
+- **Alternatives:** Telling the model in the prompt not to overreact to one-day spikes.
+- **Why:** Principle 3: guardrails in code. In `s3_one_off_outlier` a model that wants to chase the 71% "surge"
+  cannot plan on it; it has to engage with the evidence that one 200-unit order explains the spike.
+- **Compute tool outputs:** `generate_options` returns a compact summary to the model (no projection arrays) to
+  save tokens, and keeps the full engine `OptionSet` in run state. The decision is built from that full set.
