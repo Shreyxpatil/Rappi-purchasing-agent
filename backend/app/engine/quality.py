@@ -39,3 +39,17 @@ def check_consistency(on_hand: int, reserved: int) -> list[DataIssue]:
         issues.append(DataIssue(code="CONFLICTING_DATA", source="inventory",
                                 detail={"on_hand": on_hand, "reserved": reserved}))
     return issues
+
+
+def data_blocks_decision(issues: list[DataIssue], sensitivity: InventorySensitivity | None) -> bool:
+    """Should the agent INVESTIGATE instead of acting?
+
+    * missing or conflicting data always blocks;
+    * a stale stock count blocks only if the order changes once sales since the count are deducted
+      (or the sensitivity could not be computed). Otherwise the agent proceeds and records the staleness;
+    * other stale sources (forecast, supplier terms) are recorded as weaker evidence but do not block.
+    """
+    if any(i.code in ("MISSING_DATA", "CONFLICTING_DATA") for i in issues):
+        return True
+    stale_inventory = any(i.code == "STALE_DATA" and i.source == "inventory" for i in issues)
+    return stale_inventory and (sensitivity is None or sensitivity.decision_flips)

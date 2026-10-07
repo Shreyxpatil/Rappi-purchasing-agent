@@ -93,3 +93,39 @@ def test_conflicting_inventory_is_flagged() -> None:
     assert [i.code for i in check_consistency(on_hand=-5, reserved=0)] == ["CONFLICTING_DATA"]
     assert check_consistency(on_hand=10, reserved=20)[0].detail == {"on_hand": 10, "reserved": 20}
     assert check_consistency(on_hand=10, reserved=2) == []
+
+
+def test_stale_data_that_does_not_change_the_order_proceeds_and_is_recorded() -> None:
+    from app.engine.quality import data_blocks_decision
+
+    fx = load_fixture("s1_overstock")  # same position, but pretend the count is 30h old
+    issues = assess_freshness({"inventory": 30}, {"inventory": 24})
+    sens = inventory_sensitivity(net_input(fx), units_sold_since_count=60)  # one day of sales since the count
+    assert sens.as_recorded.net == 140 and sens.adjusted.net == 200
+    assert sens.as_recorded.order_qty == sens.adjusted.order_qty == 240  # MOQ absorbs the uncertainty
+    assert not data_blocks_decision(issues, sens)
+
+    inp = options_input(fx)
+    options = generate_options(inp)
+    d = build_decision(options, options.options[0], recommendation=inp.recommendation, data_issues=issues,
+                       sensitivity=sens)
+    assert (d.outcome, d.quantity) == ("MODIFY", 240)  # proceeds
+    names = {f.name: f for f in d.factors}
+    assert names["inventory data"].value == "STALE_DATA: 30h old (limit 24h)"
+    assert names["stock count sensitivity"].effect == "decision unchanged: proceed"
+    assert d.residual_risk == {"stale_inventory_age_hours": 30}
+    assert d.confidence == "medium"
+
+
+def test_data_blocks_decision_rules() -> None:
+    from app.engine.quality import data_blocks_decision
+
+    fx = load_fixture("s1_stale_inventory")
+    stale = assess_freshness({"inventory": 72}, {"inventory": 24})
+    flips = inventory_sensitivity(net_input(fx), 180)
+    assert data_blocks_decision(stale, flips)  # order changes 0 -> 240: investigate
+    assert data_blocks_decision(stale, None)  # cannot tell: investigate
+    assert data_blocks_decision(assess_freshness({"budget": None}, {}), None)  # missing data
+    assert data_blocks_decision(check_consistency(on_hand=-1, reserved=0), None)  # conflicting data
+    stale_forecast = assess_freshness({"forecast": 60}, {"forecast": 48})
+    assert not data_blocks_decision(stale_forecast, None)  # recorded as weaker evidence, does not block

@@ -14,6 +14,7 @@ from app.engine.types import (
     Decision,
     DemandSignal,
     Factor,
+    InventorySensitivity,
     Option,
     OptionSet,
     Recommendation,
@@ -70,7 +71,8 @@ def check_constraints(option: Option, overridden: frozenset[str] = frozenset()) 
 def build_decision(options: OptionSet, chosen: Option | None, *, investigate: bool = False,
                    recommendation: Recommendation | None = None, data_issues: list[DataIssue] | None = None,
                    demand_signal: DemandSignal | None = None, information_needed: list[str] | None = None,
-                   overridden: frozenset[str] = frozenset()) -> Decision:
+                   overridden: frozenset[str] = frozenset(),
+                   sensitivity: InventorySensitivity | None = None) -> Decision:
     data_issues = data_issues or []
     outcome = derive_outcome(chosen, investigate=investigate, recommendation=recommendation)
     acting = outcome != "INVESTIGATE" and chosen is not None
@@ -95,11 +97,12 @@ def build_decision(options: OptionSet, chosen: Option | None, *, investigate: bo
         supplier_id=chosen.supplier_id if acting else None,
         deliveries=chosen.deliveries if acting else [],
         value=chosen.value if acting else 0.0,
-        factors=_factors(options, chosen if acting else None, recommendation, demand_signal, data_issues),
+        factors=_factors(options, chosen if acting else None, recommendation, demand_signal, data_issues,
+                         sensitivity),
         constraints_checked=check_constraints(chosen, overridden) if acting else [],
         recommendation_check=check_constraints(rec_option) if rec_option else None,
-        confidence=_confidence(outcome, chosen, data_issues, demand_signal),
-        residual_risk=_residual_risk(chosen) if acting else None,
+        confidence=_confidence(outcome, chosen, data_issues, demand_signal, sensitivity),
+        residual_risk=_residual_risk(chosen, data_issues) if acting else None,
         information_needed=info,
         data_issues=data_issues,
         alternatives=[o.id for o in options.options if chosen is None or o.id != chosen.id][:2],
@@ -107,7 +110,8 @@ def build_decision(options: OptionSet, chosen: Option | None, *, investigate: bo
 
 
 def _factors(options: OptionSet, chosen: Option | None, rec: Recommendation | None,
-             signal: DemandSignal | None, issues: list[DataIssue]) -> list[Factor]:
+             signal: DemandSignal | None, issues: list[DataIssue],
+             sensitivity: InventorySensitivity | None) -> list[Factor]:
     r = options.reference
     f = [
         Factor(name="demand over horizon", value=f"{r.demand:g} units over {r.horizon} days ({r.avg_daily:g}/day)",
@@ -140,22 +144,38 @@ def _factors(options: OptionSet, chosen: Option | None, rec: Recommendation | No
             f.append(Factor(name="alternate supplier", value=f"{chosen.supplier_id}, price "
                             f"{chosen.price_variance_pct:+g}% vs primary", effect="needs approval"))
     for i in issues:
-        f.append(Factor(name=f"{i.source} data", value=i.code, effect="weakens evidence"))
+        age = f": {i.detail['age_hours']:g}h old (limit {i.detail['limit_hours']:g}h)" if i.code == "STALE_DATA" else ""
+        f.append(Factor(name=f"{i.source} data", value=f"{i.code}{age}", effect="weakens evidence"))
+    if sensitivity is not None:
+        f.append(Factor(
+            name="stock count sensitivity",
+            value=f"order {sensitivity.as_recorded.order_qty} as recorded vs {sensitivity.adjusted.order_qty} "
+                  f"after deducting {sensitivity.units_sold_since_count} units sold since the count",
+            effect="decision flips: investigate" if sensitivity.decision_flips else "decision unchanged: proceed"))
     return f
 
 
-def _confidence(outcome: str, chosen: Option | None, issues: list[DataIssue], signal: DemandSignal | None) -> str:
-    if outcome == "INVESTIGATE" or issues or (signal and signal.classification in ("INCONCLUSIVE", "STOCKOUT_CENSORED")):
+def _confidence(outcome: str, chosen: Option | None, issues: list[DataIssue], signal: DemandSignal | None,
+                sensitivity: InventorySensitivity | None) -> str:
+    # Stale data the decision provably does not depend on lowers confidence to medium, not low.
+    robust_to_staleness = (sensitivity is not None and not sensitivity.decision_flips
+                           and all(i.code == "STALE_DATA" for i in issues))
+    if outcome == "INVESTIGATE" or (issues and not robust_to_staleness) or (
+            signal and signal.classification in ("INCONCLUSIVE", "STOCKOUT_CENSORED")):
         return "low"
-    if chosen and (chosen.stockout_day is not None or chosen.safety_shortfall > 0 or chosen.is_alternate_supplier
-                   or chosen.needs_override or chosen.violations):
+    if issues or (chosen and (chosen.stockout_day is not None or chosen.safety_shortfall > 0
+                              or chosen.is_alternate_supplier or chosen.needs_override or chosen.violations)):
         return "medium"
     return "high"
 
 
-def _residual_risk(chosen: Option) -> dict[str, float | int] | None:
+def _residual_risk(chosen: Option, issues: list[DataIssue]) -> dict[str, float | int] | None:
+    risk: dict[str, float | int] = {}
     if chosen.stockout_day is not None:
-        return {"stockout_day": chosen.stockout_day, "unmet_units": chosen.unmet_units}
-    if chosen.safety_shortfall > 0:
-        return {"safety_shortfall": chosen.safety_shortfall}
-    return None
+        risk.update(stockout_day=chosen.stockout_day, unmet_units=chosen.unmet_units)
+    elif chosen.safety_shortfall > 0:
+        risk["safety_shortfall"] = chosen.safety_shortfall
+    for i in issues:  # acting on stale data is a risk the approver and the report must see
+        if i.code == "STALE_DATA":
+            risk[f"stale_{i.source}_age_hours"] = i.detail["age_hours"]
+    return risk or None

@@ -201,3 +201,22 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
   agent investigates and names the information that would settle it.
 - **Engine purity:** a test parses every engine module and fails if it imports anything except `math`, `pydantic`
   or the engine itself.
+
+## D16. Stale data blocks a decision only if the decision depends on it
+
+- **Decision:** `data_blocks_decision` sends the agent to INVESTIGATE when:
+  - any data is missing or conflicting; or
+  - the stock count is stale *and* deducting the sales recorded since the count changes the order quantity, or that
+    sensitivity could not be computed.
+
+  When the count is stale but the order is unchanged, the agent proceeds, and the staleness is recorded three ways:
+  1. a factor (`inventory data: STALE_DATA: 30h old (limit 24h)`);
+  2. a sensitivity factor (`order 240 as recorded vs 240 after deducting 60 units sold since the count`);
+  3. the residual risk (`stale_inventory_age_hours: 30`).
+
+  Confidence drops to `medium`, not `low`. Stale forecasts or supplier terms are recorded as weaker evidence but do
+  not block.
+- **Alternatives:** Always investigate on stale data (blocks too much: here the MOQ of 240 absorbs the uncertainty
+  completely); ignore staleness when the order is unchanged (hides a real risk from the approver).
+- **Why:** A blunt freshness threshold would halt purchasing every time a count is a few hours late. Testing whether
+  the stale input actually matters is the cheap, explainable middle ground.
