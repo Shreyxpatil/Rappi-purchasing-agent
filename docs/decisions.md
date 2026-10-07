@@ -285,3 +285,18 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
   it reappeared as an option once its PO no longer looked partial.
 - **Budget commitment:** submitting a PO adds its value to `committed`. Acknowledgements and cancellations release
   it, so later checks in the same run see the real remaining budget.
+
+## D21. Provider-agnostic LLM interface; scripted client for tests and offline demos
+
+- **Decision:** The agent depends only on `LLMClient.complete(messages, tools) -> LLMResponse` (`llm/base.py`).
+  Messages carry an opaque `provider_data` field, so provider-specific state that must be echoed back (for example
+  Gemini thought signatures) survives a pause for approval and a resume in another process.
+  `ScriptedClient` replays `evals/scripts/<case>.json`:
+  - the turn to play is the number of assistant messages already in the conversation, so it resumes correctly
+    after an approval;
+  - runtime ids come from `$ref:<tool>.<field>` (e.g. the PO id `create_po_draft` returned).
+- **Alternatives:** A heuristic "fake agent" that always picks the top option; mocking the HTTP layer of a real provider.
+- **Why:** Tests and the demo must run with no key and no cost (principle 6). A replayed trajectory is honest about
+  what it is: it regression-tests the system (tools, gate, loop, graders), not the model's judgement. Scripts live
+  next to the fixtures but in their own folder: the fixture is the situation and the right answer, the script is
+  one agent's behaviour. That is also what lets P6 add *known-bad* scripts as grader negative controls.
