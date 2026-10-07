@@ -6,8 +6,8 @@ evaluated here (constraints, projection, cost), so the choice is between known o
 Ranking follows the documented constraint priority:
   hard constraints (unless a human can override) > avoid stockout > avoid overstock
   > keep safety stock > avoid needing an override > prefer the primary supplier > cost.
-A recommendation that is within tolerance and passes everything is ranked first: the agent
-should not churn a plan that is already right.
+A recommendation that is within tolerance, passes validate_po AND leaves no projected stockout
+before the next cycle is ranked first: the agent should not churn a plan that is already right.
 """
 
 import math
@@ -166,7 +166,8 @@ class _Builder:
             own > 0
             and self.rec_deviation_pct is not None
             and self.rec_deviation_pct <= self.inp.accept_tolerance_pct
-            and not opt["violations"]
+            and not opt["violations"]  # validate_po: MOQ, case pack, storage, budget, cover <= max, ...
+            and opt["stockout_day"] is None  # outcome projection: no stockout before the next cycle
             and rec.supplier_id not in self.unavailable
         )
 

@@ -119,3 +119,24 @@ def test_excluded_supplier_after_rejection_moves_to_cheapest_alternate() -> None
 def test_options_are_deterministic() -> None:
     inp = options_input(load_fixture("s2_alt_moq_exceeds_gap"))
     assert generate_options(inp) == generate_options(inp)
+
+
+def test_recommendation_that_passes_validation_but_stocks_out_is_not_accepted() -> None:
+    from app.engine.types import OptionsInput, Recommendation, StorageInfo, SupplierTerms
+
+    # No safety stock, so the own order (200) ends the horizon at exactly 0, while the recommendation
+    # (180, only 10% lower: inside tolerance) passes every validate_po check but runs out on day 4.
+    inp = OptionsInput(
+        forecast=[100.0] * 10, on_hand=300, reserved=0, receipts=[], review_period_days=2, safety_days=0,
+        max_days_cover=30, storage=StorageInfo(capacity_units=10_000, used_units=300, sku_on_hand=300),
+        budget_remaining=1_000_000,
+        suppliers=[SupplierTerms(supplier_id="SUP", unit_cost=10, moq=0, case_pack=10, lead_time_days=3,
+                                 is_primary=True)],
+        recommendation=Recommendation(id="REC", supplier_id="SUP", qty=180),
+    )
+    s = generate_options(inp)
+    rec = next(o for o in s.options if o.is_recommendation)
+    assert rec.violations == [] and s.recommendation_deviation_pct == 10.0  # passes validate_po, in tolerance
+    assert rec.stockout_day == 4  # ...but the outcome projection fails
+    assert not s.recommendation_acceptable
+    assert s.options[0].id == "BUY:SUP:200" and s.options[0].stockout_day is None

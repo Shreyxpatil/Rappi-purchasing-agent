@@ -167,8 +167,15 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
   > needs a human override > alternate supplier > unit cost > number of new deliveries
   ```
 
-  A recommendation within tolerance that passes every check is ranked first, so the agent does not churn a correct
-  plan. A recommendation that fails is still listed: it is the evidence for MODIFY or REJECT.
+  A recommendation is *acceptable as is* only if all of these hold:
+  - it is within tolerance of the agent's own quantity;
+  - it passes `validate_po` (MOQ, case pack, storage, budget, cover ≤ max, ...);
+  - the outcome projection with it shows no stockout before the next cycle.
+
+  An acceptable recommendation is ranked first, so the agent does not churn a correct plan. A recommendation that
+  fails is still listed: it is the evidence for MODIFY or REJECT. The projection condition was added after review: a
+  recommendation 10% below a no-safety-stock requirement passes every PO check yet runs out on day 4, and must not
+  be accepted.
 - **Rules inside the generator:**
   - A supplier that just partially filled is not offered for more units, except its own backorder.
   - Options a human refused are dropped. So is every option that needs an override the human refused, so the agent
