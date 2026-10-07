@@ -1,0 +1,48 @@
+{
+  "id": "s4_budget_override_rejected",
+  "scenario": "S4",
+  "title": "Human refuses the budget override: execute the within-budget fallback and own the residual risk",
+  "description": "Same position as s4_budget_binding, but the category manager rejects the 714-unit override. The agent must not ask again or escalate in a loop. It replans to the best option that needs no override (342 units, within budget, auto-approvable), executes and validates it, and reports the stockout on day 7 that the human knowingly accepted.",
+  "as_of": "2026-10-07T07:00:00",
+  "seed": {
+    "inventory": [{"node": "BOG-02", "sku": "COCA-1.5L", "on_hand": 250, "reserved": 0, "updated_hours_ago": 1}],
+    "forecasts": [{"node": "BOG-02", "sku": "COCA-1.5L", "flat": 80, "days": 14}],
+    "sales": [{"node": "BOG-02", "sku": "COCA-1.5L", "flat": 80, "days": 28}],
+    "budgets": [{"category": "beverages", "currency": "COP", "limit": 30000000, "committed": 22000000, "spent": 6000000}],
+    "storage": [{"node": "BOG-02", "zone": "ambient", "capacity": 5000, "used": 3000}],
+    "recommendations": [{"id": "REC-403", "node": "BOG-02", "sku": "COCA-1.5L", "supplier": "SUP-FEMSA-CO", "qty": 720}]
+  },
+  "trigger": {"type": "recommendation_review", "node": "BOG-02", "sku": "COCA-1.5L", "recommendation_id": "REC-403",
+              "message": "Replenishment system recommends buying 720 units."},
+  "supplier_behaviour": {"SUP-FEMSA-CO": [{"type": "CONFIRMED"}]},
+  "approval_responses": ["REJECT"],
+  "expected": {
+    "outcome": "MODIFY", "qty_min": 342, "qty_max": 342, "final_status": "COMPLETED", "option_kind": "PURCHASE",
+    "final_pos": [{"supplier": "SUP-FEMSA-CO", "sku": "COCA-1.5L", "qty_min": 342, "qty_max": 342, "status": "CONFIRMED"}],
+    "approval_reasons": ["BUDGET_OVERRIDE", "OVER_AUTO_LIMIT"],
+    "approval_alternatives": [
+      {"qty": 714, "value": 4141200, "over_budget": 2141200, "stockout_day": null},
+      {"qty": 342, "value": 1983600, "over_budget": 0, "stockout_day": 7, "unmet_units": 128}
+    ],
+    "min_replans": 1,
+    "residual_risk": {"stockout_day": 7, "unmet_units": 128},
+    "required_tools": ["get_inventory", "get_forecast", "get_budget", "calculate_net_requirement", "generate_options", "submit_po"],
+    "max_persisted_qty": 342,
+    "computed": {
+      "horizon": 9, "demand": 720, "safety_stock": 240, "available": 250, "inbound": 0, "net": 710, "order_qty": 714,
+      "budget_remaining": 2000000, "max_qty_budget": 342, "fallback_value": 1983600, "budget_left_after": 16400,
+      "projection_with_fallback": [170, 90, 352, 272, 192, 112, 32, -48, -128],
+      "fallback_stockout_day": 7, "fallback_unmet_units": 128
+    }
+  },
+  "rationale": [
+    "own requirement identical to s4_budget_binding: net 710 -> 714; the full buy needs BUDGET_OVERRIDE + OVER_AUTO_LIMIT approval; the approver sees A (714, 2,141,200 over budget, no stockout) vs B (342, stockout day 7)",
+    "human REJECTS the override -> option A is removed (a refused option is never re-proposed) -> replan 1",
+    "best remaining option is B: floor(2,000,000 / 5,800) = 344 -> floor to case 6 = 342; 342 x 5,800 = 1,983,600 COP <= 2,000,000 (16,400 left)",
+    "B needs no approval: primary supplier, within budget, 1,983,600 < auto limit 3,000,000, constraints pass -> executes automatically",
+    "pre-action validate_po passes (MOQ 120 <= 342, 342 = 57 cases of 6, storage free 2160, budget ok) -> submit -> CONFIRMED",
+    "outcome check: projection with 342 arriving day 2 = d0 170, d1 90, d2 352, d3 272, d4 192, d5 112, d6 32, d7 -48, d8 -128",
+    "the realised projection matches the option's prediction (stockout day 7, 128 unmet), and that stockout is the risk the human accepted by refusing A -> no replan; the run completes and the decision records residual_risk {stockout_day: 7, unmet_units: 128}",
+    "nothing above 342 units may be persisted after the rejection"
+  ]
+}

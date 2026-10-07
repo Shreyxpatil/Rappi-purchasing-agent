@@ -212,6 +212,8 @@ class Expected(_Strict):
     # Options the approval request must present side by side; each dict lists fields that must match.
     approval_alternatives: list[dict[str, Any]] = Field(default_factory=list)
     escalation: bool = False
+    # Known risk the final decision must carry when a human refused the better option (e.g. a stockout day).
+    residual_risk: dict[str, Any] | None = None
     min_replans: int = 0
     required_tools: list[str] = Field(default_factory=list)
     forbidden_tools: list[str] = Field(default_factory=list)

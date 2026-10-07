@@ -16,7 +16,7 @@ FIXTURES = list_fixtures()
 
 
 def test_there_are_fixtures() -> None:
-    assert len(FIXTURES) >= 16
+    assert len(FIXTURES) >= 17
 
 
 @pytest.mark.parametrize("fx", FIXTURES, ids=lambda f: f.id)
