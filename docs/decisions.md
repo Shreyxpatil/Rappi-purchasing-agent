@@ -153,3 +153,28 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
   Thresholds are parameters, and they move to `policy.yaml` with the other tunables.
 - **Assumption:** Forecasts are baseline forecasts that do not include promotions, so `apply_promotions` uplifts
   promo days. In production the forecast would carry a promo-aware flag to avoid double counting.
+
+## D14. The engine generates and ranks options; the LLM chooses an option id
+
+- **Decision:** `generate_options` fully evaluates every candidate action against the same constraints, projection
+  and cost. Candidates: do nothing / accept the partial, backorder, buy from each eligible supplier (plus storage-capped,
+  split-delivery and budget-capped variants when a constraint binds), increase an open PO, transfer from a node in the
+  same city, the recommendation as is, and escalate. It ranks them with a fixed key, which is the documented
+  constraint priority:
+
+  ```
+  hard block (non-overridable) > unmet units (stockout) > overstock > safety-stock shortfall
+  > needs a human override > alternate supplier > unit cost > number of new deliveries
+  ```
+
+  A recommendation within tolerance that passes every check is ranked first, so the agent does not churn a correct
+  plan. A recommendation that fails is still listed: it is the evidence for MODIFY or REJECT.
+- **Rules inside the generator:**
+  - A supplier that just partially filled is not offered for more units, except its own backorder.
+  - Options a human refused are dropped. So is every option that needs an override the human refused, so the agent
+    can't re-ask for the same override disguised as the recommendation.
+  - Option ids are readable and stable (`BUY:SUP-ALQ:240`, `SPLIT:SUP-ALQ:360@3+84@4`, `TRANSFER:CDMX-02:80`).
+- **Alternatives:** Let the LLM propose quantities and validate afterwards; a weighted score.
+- **Why:** The LLM's job becomes a judgement over known outcomes ("transfer 80 from Polanco vs. a full pallet that
+  overstocks"), not arithmetic. A lexicographic key is explainable line by line, where weights would need tuning
+  and defending.

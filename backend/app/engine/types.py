@@ -194,3 +194,94 @@ class DemandSignal(Frozen):
     promo_days: list[int]  # elevated days inside a promotion
     stockout_days: list[int]  # recent days whose sales were capped by zero stock
     evidence: list[str]
+
+
+class Recommendation(Frozen):
+    id: str
+    supplier_id: str
+    qty: int
+
+
+class PartialFill(Frozen):
+    """Scenario 2: a supplier confirmed less than was ordered."""
+
+    po_id: str
+    supplier_id: str
+    qty_ordered: int
+    qty_confirmed: int
+    eta_day: int
+    unit_cost: float
+    backorder_eta_day: int | None = None  # when the supplier says the remainder could follow
+
+
+class OpenLine(Frozen):
+    """An open PO line that could still be increased."""
+
+    po_id: str
+    supplier_id: str
+    qty: int
+    eta_day: int
+
+
+class TransferSource(Frozen):
+    """Another node in the same city; its own requirement decides how much it can spare."""
+
+    node_id: str
+    requirement: NetRequirementInput
+
+
+class OptionsInput(Frozen):
+    forecast: list[float]  # demand basis chosen for this decision
+    on_hand: int
+    reserved: int
+    receipts: list[Receipt]  # existing inbound (supplier-confirmed quantities)
+    review_period_days: int
+    safety_days: float
+    max_days_cover: int
+    storage: StorageInfo | None
+    budget_remaining: float | None
+    suppliers: list[SupplierTerms]  # every supplier that sells the SKU; the primary is the reference
+    recommendation: Recommendation | None = None
+    partial_fill: PartialFill | None = None
+    open_lines: list[OpenLine] = []
+    transfer_sources: list[TransferSource] = []
+    transfer_lead_days: int = 1
+    accept_tolerance_pct: float = 10.0
+    excluded_suppliers: list[str] = []  # e.g. rejected the PO earlier in this run
+    excluded_option_ids: list[str] = []  # e.g. refused by a human
+    refused_overrides: list[str] = []  # e.g. BUDGET_EXCEEDED: drop every option that needs it
+
+
+class Option(Frozen):
+    id: str  # stable and readable, e.g. BUY:SUP-ALQ:240, TRANSFER:CDMX-02:80
+    kind: str  # PURCHASE | TRANSFER | ACCEPT_PARTIAL | BACKORDER | NO_ACTION | ESCALATE
+    label: str
+    rank: int
+    supplier_id: str | None = None
+    po_id: str | None = None  # existing PO this option changes
+    from_node: str | None = None
+    is_recommendation: bool = False
+    deliveries: list[Delivery] = []
+    qty: int
+    unit_cost: float
+    value: float  # new spend this option commits
+    violations: list[Violation]
+    blocked: bool
+    needs_override: bool
+    is_alternate_supplier: bool
+    price_variance_pct: float | None
+    stockout_day: int | None
+    unmet_units: float
+    end_level: float
+    safety_shortfall: float
+    cover_at_arrival: float | None
+    projection: list[float]  # end-of-day levels over the horizon
+    tradeoffs: list[str]
+
+
+class OptionSet(Frozen):
+    reference_supplier_id: str
+    reference: NetRequirement  # own requirement with the primary supplier's terms
+    options: list[Option]  # ranked, best first
+    recommendation_acceptable: bool
+    recommendation_deviation_pct: float | None

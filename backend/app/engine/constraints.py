@@ -13,7 +13,7 @@ from app.engine.types import Caps, ConstraintReport, Delivery, PlanContext, Rece
 
 def capacity_caps(ctx: PlanContext, day: int, unit_cost: float, case_pack: int) -> Caps:
     """Largest single delivery on `day` allowed by storage, budget and the cover limit."""
-    before = _level_before(ctx, day, extra=[])
+    before = level_before(ctx, day, extra=[])
     storage_free = max_storage = None
     if ctx.storage is not None:
         storage_free = ctx.storage.sku_capacity - before
@@ -38,7 +38,7 @@ def evaluate_constraints(deliveries: list[Delivery], unit_cost: float, case_pack
     covers = []
     for i, d in enumerate(deliveries):
         earlier = receipts[:i]  # this plan's earlier deliveries are already on the shelf
-        before = _level_before(ctx, d.day, extra=earlier)
+        before = level_before(ctx, d.day, extra=earlier)
         after = before + d.qty
         if ctx.storage is not None and after > ctx.storage.sku_capacity:
             free = ctx.storage.sku_capacity - before
@@ -51,9 +51,9 @@ def evaluate_constraints(deliveries: list[Delivery], unit_cost: float, case_pack
                 "day": d.day, "cover_days": cover, "max_days": ctx.max_days_cover,
                 "max_qty": floor_to(ctx.max_days_cover * ctx.avg_daily - before, case_pack)}))
 
-    if ctx.budget_remaining is None:
+    if ctx.budget_remaining is None and value > 0:  # transfers cost nothing: budget is irrelevant
         violations.append(Violation(code="DATA_MISSING", hard=True, detail={"what": "budget"}))
-    elif value > ctx.budget_remaining:
+    elif ctx.budget_remaining is not None and value > ctx.budget_remaining:
         violations.append(Violation(code="BUDGET_EXCEEDED", hard=True, overridable=True, detail={
             "value": value, "remaining": ctx.budget_remaining, "over_by": round(value - ctx.budget_remaining, 2),
             "max_qty": floor_to(math.floor(ctx.budget_remaining / unit_cost), case_pack)}))
@@ -63,7 +63,7 @@ def evaluate_constraints(deliveries: list[Delivery], unit_cost: float, case_pack
                             projection=projection, cover_at_arrival=covers)
 
 
-def _level_before(ctx: PlanContext, day: int, extra: list[Receipt]) -> float:
+def level_before(ctx: PlanContext, day: int, extra: list[Receipt]) -> float:
     """Stock on hand at the start of `day`, after other receipts that day, before this delivery."""
     if day == 0:
         return float(ctx.available + sum(r.qty for r in ctx.existing_receipts + extra if r.day == 0))
