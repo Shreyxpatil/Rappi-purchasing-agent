@@ -125,3 +125,39 @@ class ConstraintReport(Frozen):
     @property
     def needs_override(self) -> bool:
         return any(v.hard and v.overridable for v in self.violations)
+
+
+class SupplierTerms(Frozen):
+    supplier_id: str
+    unit_cost: float
+    moq: int
+    case_pack: int
+    lead_time_days: int
+    active: bool = True
+    is_primary: bool = False
+    reliability: float = 1.0
+
+
+class PODraft(Frozen):
+    """A proposed PO (or change to one) for a single SKU, possibly split into several deliveries."""
+
+    supplier_id: str
+    sku: str
+    deliveries: list[Delivery]
+    unit_cost: float
+    po_id: str | None = None  # set when changing an existing PO
+    base_qty: int = 0  # quantity already on the existing line; MOQ applies to the total
+
+
+class OpenPORef(Frozen):
+    po_id: str
+    supplier_id: str
+    sku: str
+    status: str
+
+
+class ValidationResult(Frozen):
+    ok: bool
+    violations: list[Violation]
+    overridden: list[str]  # hard codes a human explicitly approved past (e.g. BUDGET_EXCEEDED)
+    report: ConstraintReport
