@@ -1,0 +1,51 @@
+{
+  "nodes": [
+    {"id": "BOG-01", "name": "Dark Store Chapinero", "city": "Bogotá", "country": "CO", "currency": "COP"},
+    {"id": "BOG-02", "name": "Dark Store Usaquén", "city": "Bogotá", "country": "CO", "currency": "COP"},
+    {"id": "CDMX-01", "name": "Dark Store Roma Norte", "city": "Ciudad de México", "country": "MX", "currency": "MXN"},
+    {"id": "CDMX-02", "name": "Dark Store Polanco", "city": "Ciudad de México", "country": "MX", "currency": "MXN"}
+  ],
+  "products": [
+    {"sku": "LECHE-ALQ-1L", "name": "Leche Entera Alquería 1L", "category": "dairy", "temp_zone": "chilled",
+     "unit": "unit", "safety_days": 2, "review_period_days": 2, "max_days_cover": 10},
+    {"sku": "HUEVOS-AA-30", "name": "Huevos AA Kikes x30", "category": "eggs", "temp_zone": "ambient",
+     "unit": "tray", "safety_days": 2, "review_period_days": 3, "max_days_cover": 14},
+    {"sku": "COCA-1.5L", "name": "Coca-Cola Original 1.5L", "category": "beverages", "temp_zone": "ambient",
+     "unit": "unit", "safety_days": 3, "review_period_days": 7, "max_days_cover": 30},
+    {"sku": "LECHE-LALA-1L", "name": "Leche Entera Lala 1L", "category": "dairy", "temp_zone": "chilled",
+     "unit": "unit", "safety_days": 2, "review_period_days": 3, "max_days_cover": 10},
+    {"sku": "AGUA-CIEL-1L", "name": "Agua Ciel 1L", "category": "beverages", "temp_zone": "ambient",
+     "unit": "unit", "safety_days": 2, "review_period_days": 3, "max_days_cover": 30}
+  ],
+  "suppliers": [
+    {"id": "SUP-ALQ", "name": "Alquería S.A.", "country": "CO", "active": true, "reliability_score": 0.95},
+    {"id": "SUP-ANDINA", "name": "Distribuidora Mayorista Andina", "country": "CO", "active": true, "reliability_score": 0.86},
+    {"id": "SUP-DORADO", "name": "Comercializadora El Dorado", "country": "CO", "active": true, "reliability_score": 0.82},
+    {"id": "SUP-MAKRO", "name": "Makro Supermayorista", "country": "CO", "active": true, "reliability_score": 0.90},
+    {"id": "SUP-KIKES", "name": "Avícola Kikes", "country": "CO", "active": true, "reliability_score": 0.93},
+    {"id": "SUP-FEMSA-CO", "name": "Coca-Cola FEMSA Colombia", "country": "CO", "active": true, "reliability_score": 0.97},
+    {"id": "SUP-LALA", "name": "Grupo Lala", "country": "MX", "active": true, "reliability_score": 0.94},
+    {"id": "SUP-CEDA", "name": "Distribuidora Central de Abasto", "country": "MX", "active": true, "reliability_score": 0.85},
+    {"id": "SUP-FEMSA-MX", "name": "Coca-Cola FEMSA México", "country": "MX", "active": true, "reliability_score": 0.96}
+  ],
+  "supplier_products": [
+    {"supplier_id": "SUP-ALQ", "sku": "LECHE-ALQ-1L", "unit_cost": 4200, "currency": "COP", "moq": 240, "case_pack": 12,
+     "lead_time_days": 3, "hist_fill_rate": 0.96, "is_primary": true},
+    {"supplier_id": "SUP-ANDINA", "sku": "LECHE-ALQ-1L", "unit_cost": 4350, "currency": "COP", "moq": 120, "case_pack": 12,
+     "lead_time_days": 3, "hist_fill_rate": 0.88, "is_primary": false},
+    {"supplier_id": "SUP-DORADO", "sku": "LECHE-ALQ-1L", "unit_cost": 4380, "currency": "COP", "moq": 120, "case_pack": 12,
+     "lead_time_days": 3, "hist_fill_rate": 0.84, "is_primary": false},
+    {"supplier_id": "SUP-MAKRO", "sku": "LECHE-ALQ-1L", "unit_cost": 4400, "currency": "COP", "moq": 120, "case_pack": 12,
+     "lead_time_days": 3, "hist_fill_rate": 0.91, "is_primary": false},
+    {"supplier_id": "SUP-KIKES", "sku": "HUEVOS-AA-30", "unit_cost": 16500, "currency": "COP", "moq": 50, "case_pack": 10,
+     "lead_time_days": 2, "hist_fill_rate": 0.95, "is_primary": true},
+    {"supplier_id": "SUP-FEMSA-CO", "sku": "COCA-1.5L", "unit_cost": 5800, "currency": "COP", "moq": 120, "case_pack": 6,
+     "lead_time_days": 2, "hist_fill_rate": 0.98, "is_primary": true},
+    {"supplier_id": "SUP-LALA", "sku": "LECHE-LALA-1L", "unit_cost": 26.5, "currency": "MXN", "moq": 120, "case_pack": 12,
+     "lead_time_days": 2, "hist_fill_rate": 0.94, "is_primary": true},
+    {"supplier_id": "SUP-CEDA", "sku": "LECHE-LALA-1L", "unit_cost": 28.0, "currency": "MXN", "moq": 120, "case_pack": 12,
+     "lead_time_days": 2, "hist_fill_rate": 0.87, "is_primary": false},
+    {"supplier_id": "SUP-FEMSA-MX", "sku": "AGUA-CIEL-1L", "unit_cost": 9.5, "currency": "MXN", "moq": 96, "case_pack": 12,
+     "lead_time_days": 2, "hist_fill_rate": 0.97, "is_primary": true}
+  ]
+}

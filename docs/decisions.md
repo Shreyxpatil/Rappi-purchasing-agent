@@ -46,3 +46,20 @@ are recorded here too.
 - **Decision:** `remaining = limit − committed − spent`. A PO counts against the month of its creation date.
 - **Why:** This matches how category buyers usually hold budgets. Currency is part of the key because Bogotá (COP)
   and CDMX (MXN) nodes are never mixed.
+
+## D6. Scenario clock and relative-day fixtures
+
+- **Decision:** Each scenario fixes `as_of`, and every fixture date is a day offset from it (0 = today, −1 = yesterday,
+  `eta_day: 2`). No business logic reads the wall clock.
+- **Alternatives:** Absolute dates; the real current time.
+- **Why:** Freshness checks ("inventory updated 72 h ago"), need dates and arrival days stay reproducible run after run,
+  and the arithmetic in each fixture's `rationale` can be checked by hand without a calendar.
+
+## D7. Re-seeding replaces domain data and keeps the run history
+
+- **Decision:** Launching a scenario wipes and rebuilds the domain tables (catalog, stock, purchasing, constraints).
+  `agent_runs`, `agent_steps`, `approvals` and `audit_log` survive.
+- **Alternatives:** One database per run; a scenario id column on every domain row.
+- **Why:** This is the simplest model that still keeps every past trace inspectable in the UI. The limitation:
+  a run paused for approval can't be resumed after another scenario is loaded, so it is marked `SUPERSEDED`.
+  Evals avoid this entirely by using a fresh in-memory database per run.
