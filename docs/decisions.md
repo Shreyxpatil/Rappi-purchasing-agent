@@ -178,3 +178,19 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
 - **Why:** The LLM's job becomes a judgement over known outcomes ("transfer 80 from Polanco vs. a full pallet that
   overstocks"), not arithmetic. A lexicographic key is explainable line by line, where weights would need tuning
   and defending.
+
+## D15. Outcome labels come from rules in code; confidence is derived, not self-reported
+
+- **Decision:** `derive_outcome` maps the chosen option to ACCEPT / MODIFY / REJECT / INVESTIGATE using the rules at
+  the top of `engine/decision.py`. The LLM cannot label a 240-unit order "ACCEPT" when 800 was recommended. Confidence
+  is `low` for INVESTIGATE, stale or missing data, or an inconclusive or censored demand signal. It is `medium` when
+  the chosen option carries residual risk, an alternate supplier, an override or a soft violation, and `high`
+  otherwise.
+- **Alternatives:** Asking the model for its confidence.
+- **Why:** LLM self-reported confidence is poorly calibrated. A derived confidence is reproducible and tells the
+  approver *why* it is not high.
+- **Stale data:** `inventory_sensitivity` re-runs the requirement as if the count had already been reduced by the
+  sales recorded since it was taken. If the order quantity changes, the data can't support the decision, so the
+  agent investigates and names the information that would settle it.
+- **Engine purity:** a test parses every engine module and fails if it imports anything except `math`, `pydantic`
+  or the engine itself.

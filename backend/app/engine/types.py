@@ -285,3 +285,48 @@ class OptionSet(Frozen):
     options: list[Option]  # ranked, best first
     recommendation_acceptable: bool
     recommendation_deviation_pct: float | None
+
+
+class DataIssue(Frozen):
+    code: str  # STALE_DATA | MISSING_DATA | CONFLICTING_DATA
+    source: str  # inventory | forecast | supplier_terms | ...
+    detail: dict[str, float | int | str | None] = {}
+
+
+class InventorySensitivity(Frozen):
+    units_sold_since_count: int
+    as_recorded: NetRequirement
+    adjusted: NetRequirement
+    decision_flips: bool
+
+
+class Factor(Frozen):
+    name: str
+    value: str
+    effect: str  # how it moved the decision, e.g. "raises need", "blocks recommendation"
+
+
+class ConstraintCheck(Frozen):
+    name: str  # MOQ | CASE_PACK | STORAGE | BUDGET | COVER | SUPPLIER_ACTIVE | LEAD_TIME | DATA
+    status: str  # pass | fail | overridden | warning | n/a
+    detail: dict[str, float | int | str | None] = {}
+
+
+class Decision(Frozen):
+    """The structured decision. The narrative is written from this object, never the other way round."""
+
+    outcome: str  # ACCEPT | MODIFY | REJECT | INVESTIGATE
+    quantity: int
+    option_id: str | None
+    option_kind: str | None
+    supplier_id: str | None
+    deliveries: list[Delivery]
+    value: float
+    factors: list[Factor]
+    constraints_checked: list[ConstraintCheck]
+    recommendation_check: list[ConstraintCheck] | None
+    confidence: str  # high | medium | low
+    residual_risk: dict[str, float | int] | None
+    information_needed: list[str]
+    data_issues: list[DataIssue]
+    alternatives: list[str]  # next-best option ids, for the approval card and the report
