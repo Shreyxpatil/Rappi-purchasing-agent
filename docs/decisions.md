@@ -363,14 +363,16 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
 
 - **Decision:** `OpenAICompatibleClient` speaks plain chat-completions over `httpx`, configured only by
   `OPENAI_COMPAT_BASE_URL`, `OPENAI_COMPAT_API_KEY` and `OPENAI_COMPAT_MODEL`. The preset is Groq
-  (`https://api.groq.com/openai/v1`, `llama-3.3-70b-versatile`: a production model that supports tool use and
-  parallel tool calls, per Groq's docs on 2026-10-08). It shares the pacer and backoff with the Gemini client.
+  (`https://api.groq.com/openai/v1`, `qwen/qwen3.8-27b`). It shares the pacer and backoff with the Gemini client.
+  Groq's docs listed `llama-3.3-70b-versatile`, but a real free-tier key's `/models` did not include it.
+  `qwen/qwen3.8-27b` was available, made parallel tool calls in a live test, and completed `s1_overstock`
+  correctly. Model availability varies per account; `GET /openai/v1/models` shows yours.
   Arguments the model emits as invalid JSON become an `_unparseable_arguments` field, so the agent's schema
   validation answers with a precise error once (D23) instead of the client crashing.
 - **Alternatives:** The `openai` SDK; LiteLLM.
 - **Why:** One small client covers Groq, OpenRouter, local vLLM and Ollama alike, with no extra dependency or
   abstraction to explain.
-- **Status:** covered by offline tests against a mock transport. A live check needs a Groq key and is optional.
+- **Status:** offline tests against a mock transport, plus live runs of `s1_overstock` on a real Groq key.
 
 ## D26. The narrative is checked against the decision before a buyer sees it
 
