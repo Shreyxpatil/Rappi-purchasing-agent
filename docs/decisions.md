@@ -129,3 +129,27 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
   over-budget option, or escalate a decision the human has just made. Comparing against the prediction keeps the
   feedback loop about *unexpected* outcomes, while the accepted risk stays visible in the report.
   Case: `s4_budget_override_rejected`.
+
+## D13. Demand shifts need evidence: deterministic rules, LLM interpretation
+
+- **Decision:** `detect_demand_shift` classifies the last 7 days against the previous 21:
+  - It compares the recent days with a baseline mean that excludes stockout days.
+  - A day is **elevated** if it sells more than 1.25 × baseline.
+  - A **bulk** day is one where the largest single order explains at least 50% of the excess.
+  - A **promo** day falls inside a promotion window.
+
+  | Classification | Rule | Demand basis it suggests |
+  |---|---|---|
+  | `SUSTAINED_SHIFT` | ≥ 5 organic elevated days | recent run-rate |
+  | `ONE_OFF_OUTLIER` | every elevated day is bulk | forecast |
+  | `PROMO` | every elevated day is promo | promo-adjusted |
+  | `STOCKOUT_CENSORED` | any recent sold-out day | forecast |
+  | `INCONCLUSIVE` | 1–4 unexplained elevated days | forecast |
+
+  The LLM chooses which basis to plan on, and the engine computes the numbers for that basis.
+- **Alternatives:** Letting the LLM eyeball the sales series; a statistical change-point test.
+- **Why:** The brief asks the agent to "consider what evidence is required" and not to overreact. Explicit
+  thresholds make the evidence bar inspectable and testable. A 200-unit restaurant order can't masquerade as a trend.
+  Thresholds are parameters, and they move to `policy.yaml` with the other tunables.
+- **Assumption:** Forecasts are baseline forecasts that do not include promotions, so `apply_promotions` uplifts
+  promo days. In production the forecast would carry a promo-aware flag to avoid double counting.

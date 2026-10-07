@@ -97,3 +97,30 @@ def plan_context(fx: ScenarioFixture, *, supplier: str | None = None, basis: lis
         budget_remaining=(bud.limit - bud.committed - bud.spent) if bud else None,
         max_days_cover=p["max_days_cover"],
     )
+
+
+def sales_days(fx: ScenarioFixture, node: str, sku: str):
+    """Same defaults as app.seed for orders / largest order."""
+    import math
+
+    from app.engine.types import SalesDay
+
+    s = next(x for x in fx.seed.sales if (x.node, x.sku) == (node, sku))
+    values = s.values()
+    out = []
+    for i, u in enumerate(values):
+        u = int(u)
+        day = i - len(values)
+        out.append(SalesDay(
+            day=day, units=u,
+            orders=s.orders[i] if s.orders else (max(1, math.ceil(u / 1.5)) if u else 0),
+            max_order_units=s.max_order_units[i] if s.max_order_units else min(u, 4),
+            stockout=day in s.stockout_days))
+    return out
+
+
+def promo_windows(fx: ScenarioFixture, node: str, sku: str):
+    from app.engine.types import PromoWindow
+
+    return [PromoWindow(id=p.id, start_day=p.start_day, end_day=p.end_day, uplift_pct=p.uplift_pct)
+            for p in fx.seed.promotions if (p.node, p.sku) == (node, sku)]

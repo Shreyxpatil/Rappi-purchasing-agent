@@ -161,3 +161,36 @@ class ValidationResult(Frozen):
     violations: list[Violation]
     overridden: list[str]  # hard codes a human explicitly approved past (e.g. BUDGET_EXCEEDED)
     report: ConstraintReport
+
+
+class SalesDay(Frozen):
+    day: int  # negative offset: -1 = yesterday
+    units: int
+    orders: int
+    max_order_units: int
+    stockout: bool = False
+
+
+class PromoWindow(Frozen):
+    id: str
+    start_day: int
+    end_day: int  # inclusive
+    uplift_pct: float
+
+    def covers(self, day: int) -> bool:
+        return self.start_day <= day <= self.end_day
+
+
+class DemandSignal(Frozen):
+    # NO_SHIFT | SUSTAINED_SHIFT | ONE_OFF_OUTLIER | PROMO | STOCKOUT_CENSORED | INCONCLUSIVE
+    classification: str
+    suggested_basis: str  # forecast | recent_run_rate | promo_adjusted
+    baseline_daily: float  # mean before the recent window, stockout days excluded
+    recent_daily: float  # raw mean of the recent window
+    threshold: float  # a recent day above this is "elevated"
+    adjusted_daily: float  # run-rate with explained one-offs removed
+    elevated_days: list[int]
+    bulk_days: list[int]  # elevated days explained by one large order
+    promo_days: list[int]  # elevated days inside a promotion
+    stockout_days: list[int]  # recent days whose sales were capped by zero stock
+    evidence: list[str]
