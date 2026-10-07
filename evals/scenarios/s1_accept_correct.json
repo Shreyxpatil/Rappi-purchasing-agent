@@ -1,0 +1,42 @@
+{
+  "id": "s1_accept_correct",
+  "scenario": "S1",
+  "title": "Recommendation is right: accept 288",
+  "description": "The recommendation for Coca-Cola 1.5L at Chapinero is within tolerance of the agent's own requirement and passes every constraint. The agent must not 'improve' a correct recommendation.",
+  "as_of": "2026-10-07T07:00:00",
+  "seed": {
+    "inventory": [{"node": "BOG-01", "sku": "COCA-1.5L", "on_hand": 200, "reserved": 10, "updated_hours_ago": 1}],
+    "forecasts": [{"node": "BOG-01", "sku": "COCA-1.5L", "flat": 40, "days": 14}],
+    "sales": [{"node": "BOG-01", "sku": "COCA-1.5L", "flat": 40, "days": 28}],
+    "budgets": [{"category": "beverages", "currency": "COP", "limit": 30000000, "committed": 18000000, "spent": 4000000}],
+    "storage": [{"node": "BOG-01", "zone": "ambient", "capacity": 6000, "used": 3500}],
+    "recommendations": [{"id": "REC-102", "node": "BOG-01", "sku": "COCA-1.5L", "supplier": "SUP-FEMSA-CO", "qty": 288}]
+  },
+  "trigger": {"type": "recommendation_review", "node": "BOG-01", "sku": "COCA-1.5L", "recommendation_id": "REC-102",
+              "message": "Replenishment system recommends buying 288 units."},
+  "supplier_behaviour": {"SUP-FEMSA-CO": [{"type": "CONFIRMED"}]},
+  "expected": {
+    "outcome": "ACCEPT", "qty_min": 288, "qty_max": 288, "final_status": "COMPLETED", "option_kind": "PURCHASE",
+    "final_pos": [{"supplier": "SUP-FEMSA-CO", "sku": "COCA-1.5L", "qty_min": 288, "qty_max": 288, "status": "CONFIRMED"}],
+    "required_tools": ["get_inventory", "get_forecast", "get_open_pos", "get_supplier_terms", "get_budget",
+                       "get_storage_capacity", "calculate_net_requirement", "generate_options"],
+    "computed": {
+      "lead_time_days": 2, "review_period_days": 7, "horizon": 9, "demand": 360, "safety_stock": 120,
+      "available": 190, "inbound": 0, "net": 290, "order_qty": 294, "pre_arrival_level": 110,
+      "storage_free_at_arrival": 2590, "budget_remaining": 8000000, "rec_value": 1670400, "rec_cover": 9.95,
+      "rec_deviation_pct": 2.04
+    }
+  },
+  "rationale": [
+    "horizon = lead time 2 (SUP-FEMSA-CO) + review period 7 = 9 days",
+    "demand = 40 x 9 = 360; safety stock = 3 x 40 = 120",
+    "available = 200 - 10 = 190; no open POs -> inbound 0",
+    "net = 360 + 120 - 190 - 0 = 290 -> max(290, MOQ 120) = 290 -> case pack 6: ceil(290/6)=49 x 6 = 294",
+    "recommendation 288 vs own 294: |288-294|/294 = 2.04% <= 10% tolerance",
+    "288 = 48 cases of 6, >= MOQ 120",
+    "arrival day 2: level before arrival = 190 - 40 - 40 = 110; storage free = 6000 - (3500-200) - 110 = 2590 >= 288",
+    "value 288 x 5,800 = 1,670,400 COP <= budget remaining 30,000,000-18,000,000-4,000,000 = 8,000,000 and < auto threshold 3,000,000",
+    "cover at arrival (110+288)/40 = 9.95 <= 30; lowest level over horizon: end of day 8 = 398 - 7x40 = 118 >= 0",
+    "all constraints pass and within tolerance -> ACCEPT 288 as recommended, auto-executed"
+  ]
+}

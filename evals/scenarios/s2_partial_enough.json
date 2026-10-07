@@ -1,0 +1,42 @@
+{
+  "id": "s2_partial_enough",
+  "scenario": "S2",
+  "title": "Supplier ships 250 of 500, and 250 is enough",
+  "description": "Grupo Lala can only supply 250 of the 500 units ordered for Roma Norte. Before sourcing elsewhere the agent must check whether 250 already covers the horizon. It does, so it accepts the partial and closes the remainder.",
+  "as_of": "2026-10-07T07:00:00",
+  "seed": {
+    "inventory": [{"node": "CDMX-01", "sku": "LECHE-LALA-1L", "on_hand": 150, "reserved": 0, "updated_hours_ago": 1}],
+    "forecasts": [{"node": "CDMX-01", "sku": "LECHE-LALA-1L", "flat": 50, "days": 14}],
+    "sales": [{"node": "CDMX-01", "sku": "LECHE-LALA-1L", "flat": 50, "days": 28}],
+    "purchase_orders": [{"id": "PO-2001", "node": "CDMX-01", "supplier": "SUP-LALA", "status": "PARTIALLY_CONFIRMED", "created_days_ago": 1,
+      "lines": [{"sku": "LECHE-LALA-1L", "qty": 500, "qty_confirmed": 250, "eta_day": 1}],
+      "events": [{"type": "SUBMITTED", "source": "system", "hours_ago": 23},
+                 {"type": "PARTIAL", "hours_ago": 1, "payload": {"qty_confirmed": 250, "backorder_eta_day": 6,
+                  "message": "Planta Tizayuca con capacidad limitada: solo podemos enviar 250 unidades mañana. El resto en 6 días."}}]}],
+    "budgets": [{"category": "dairy", "currency": "MXN", "limit": 120000, "committed": 60000, "spent": 40000}],
+    "storage": [{"node": "CDMX-01", "zone": "chilled", "capacity": 1500, "used": 900}]
+  },
+  "trigger": {"type": "supplier_response", "node": "CDMX-01", "sku": "LECHE-LALA-1L", "po_id": "PO-2001",
+              "message": "Supplier SUP-LALA confirmed only 250 of 500 units on PO-2001."},
+  "supplier_behaviour": {},
+  "expected": {
+    "outcome": "ACCEPT", "qty_min": 250, "qty_max": 250, "final_status": "COMPLETED", "option_kind": "ACCEPT_PARTIAL",
+    "final_pos": [{"id": "PO-2001", "supplier": "SUP-LALA", "sku": "LECHE-LALA-1L", "qty_min": 250, "qty_max": 250, "status": "CONFIRMED"}],
+    "required_tools": ["get_open_pos", "get_inventory", "get_forecast", "get_supplier_terms", "calculate_net_requirement", "project_inventory"],
+    "forbidden_tools": ["create_po_draft"],
+    "computed": {
+      "lead_time_days": 2, "review_period_days": 3, "horizon": 5, "demand": 250, "safety_stock": 100,
+      "available": 150, "inbound": 250, "net": -50, "order_qty": 0,
+      "projection_no_order": [100, 300, 250, 200, 150]
+    }
+  },
+  "rationale": [
+    "horizon = lead time 2 (SUP-LALA) + review period 3 = 5 days",
+    "demand = 50 x 5 = 250; safety stock = 2 x 50 = 100; available = 150",
+    "inbound counts only what the supplier confirmed: 250 arriving day 1",
+    "net = 250 + 100 - 150 - 250 = -50 <= 0 -> the 250 already covers demand plus safety stock",
+    "projection: d0 100, d1 100+250-50 = 300, d2 250, d3 200, d4 150 -> never below safety stock 100",
+    "so no extra sourcing: accept the partial and reduce the line to 250 (an acknowledgement, auto-approved by policy)",
+    "the original 500 was an over-order: the full 500 would have left cover (100+500)/50 = 12 days > 10"
+  ]
+}

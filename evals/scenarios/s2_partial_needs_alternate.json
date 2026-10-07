@@ -1,0 +1,56 @@
+{
+  "id": "s2_partial_needs_alternate",
+  "scenario": "S2",
+  "title": "Supplier ships 250 of 500 and that is not enough: alternate supplier, with approval",
+  "description": "Grupo Lala can only ship 250 of 500. Demand is higher: without action Roma Norte stocks out on day 4. Lala's backorder lands on day 6, too late. No other node has stock to spare. The best option is 204 units from Central de Abasto, which needs approval: alternate supplier, and its price is 5.66% above Lala's.",
+  "as_of": "2026-10-07T07:00:00",
+  "seed": {
+    "inventory": [{"node": "CDMX-01", "sku": "LECHE-LALA-1L", "on_hand": 200, "reserved": 20, "updated_hours_ago": 1},
+                  {"node": "CDMX-02", "sku": "LECHE-LALA-1L", "on_hand": 290, "reserved": 0, "updated_hours_ago": 1}],
+    "forecasts": [{"node": "CDMX-01", "sku": "LECHE-LALA-1L", "flat": 90, "days": 14},
+                  {"node": "CDMX-02", "sku": "LECHE-LALA-1L", "flat": 40, "days": 14}],
+    "sales": [{"node": "CDMX-01", "sku": "LECHE-LALA-1L", "flat": 90, "days": 28},
+              {"node": "CDMX-02", "sku": "LECHE-LALA-1L", "flat": 40, "days": 28}],
+    "purchase_orders": [{"id": "PO-2002", "node": "CDMX-01", "supplier": "SUP-LALA", "status": "PARTIALLY_CONFIRMED", "created_days_ago": 1,
+      "lines": [{"sku": "LECHE-LALA-1L", "qty": 500, "qty_confirmed": 250, "eta_day": 1}],
+      "events": [{"type": "SUBMITTED", "source": "system", "hours_ago": 23},
+                 {"type": "PARTIAL", "hours_ago": 1, "payload": {"qty_confirmed": 250, "backorder_eta_day": 6,
+                  "message": "Planta Tizayuca con capacidad limitada: solo podemos enviar 250 unidades mañana. El resto en 6 días."}}]}],
+    "budgets": [{"category": "dairy", "currency": "MXN", "limit": 120000, "committed": 60000, "spent": 40000}],
+    "storage": [{"node": "CDMX-01", "zone": "chilled", "capacity": 1500, "used": 900}]
+  },
+  "trigger": {"type": "supplier_response", "node": "CDMX-01", "sku": "LECHE-LALA-1L", "po_id": "PO-2002",
+              "message": "Supplier SUP-LALA confirmed only 250 of 500 units on PO-2002."},
+  "supplier_behaviour": {"SUP-CEDA": [{"type": "CONFIRMED"}]},
+  "approval_responses": ["APPROVE"],
+  "expected": {
+    "outcome": "MODIFY", "qty_min": 204, "qty_max": 204, "final_status": "COMPLETED", "option_kind": "PURCHASE",
+    "final_pos": [{"id": "PO-2002", "supplier": "SUP-LALA", "sku": "LECHE-LALA-1L", "qty_min": 250, "qty_max": 250, "status": "CONFIRMED"},
+                  {"supplier": "SUP-CEDA", "sku": "LECHE-LALA-1L", "qty_min": 204, "qty_max": 204, "status": "CONFIRMED"}],
+    "approval_reasons": ["ALTERNATE_SUPPLIER", "PRICE_VARIANCE"],
+    "required_tools": ["get_open_pos", "get_inventory", "get_forecast", "calculate_net_requirement", "project_inventory",
+                       "list_alternate_suppliers", "get_inventory_other_nodes", "generate_options"],
+    "computed": {
+      "lead_time_days": 2, "review_period_days": 3, "horizon": 5, "demand": 450, "safety_stock": 180,
+      "available": 180, "inbound": 250, "net": 200, "order_qty": 204,
+      "projection_no_order": [90, 250, 160, 70, -20], "stockout_day": 4,
+      "pre_arrival_level": 250, "storage_free_at_arrival": 550, "order_value": 5712, "price_variance_pct": 5.66,
+      "transfer_excess_cdmx02": 10, "cover_after_order": 5.04,
+      "projection_with_order": [90, 250, 364, 274, 184]
+    }
+  },
+  "rationale": [
+    "horizon = lead 2 + review 3 = 5; demand = 90 x 5 = 450; safety stock = 2 x 90 = 180",
+    "available = 200 - 20 = 180; inbound = 250 confirmed of PO-2002, arriving day 1",
+    "net = 450 + 180 - 180 - 250 = 200 > 0 -> 250 is NOT enough",
+    "without action: d0 90, d1 90+250-90 = 250, d2 160, d3 70, d4 -20 -> stockout on day 4",
+    "option backorder (Lala's remaining 250, day 6): lands after the day-4 stockout -> rejected",
+    "option transfer from CDMX-02: on hand 290 minus its own need (40x5 + 2x40 = 280) = 10 spare -> not viable",
+    "option SUP-CEDA: lead 2 -> arrives day 2; qty = max(200, MOQ 120) = 200 -> case 12: ceil(200/12)=17 x 12 = 204",
+    "storage at arrival: free = 1500 - (900-200) - 250 = 550 >= 204; cover (250+204)/90 = 5.04 <= 10",
+    "value 204 x 28.00 = 5,712 MXN <= budget remaining 120,000-60,000-40,000 = 20,000",
+    "price variance vs primary supplier = (28.00-26.50)/26.50 = 5.66% > 5% and SUP-CEDA is not the primary supplier -> human approval (ALTERNATE_SUPPLIER, PRICE_VARIANCE)",
+    "PO-2002 line is reduced to the 250 Lala confirmed (remainder closed: sourced elsewhere)",
+    "after approval and confirmation: d2 250+204-90 = 364, d3 274, d4 184 -> no stockout, outcome check passes"
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "id": "s2_alt_moq_exceeds_gap",
+  "scenario": "S2",
+  "title": "Gap of 80, but the alternate supplier's MOQ is 480: transfer from another node instead",
+  "description": "Lala ships 250 of 500. The remaining need is 80 units (safety stock). Central de Abasto only sells full pallets (MOQ 480), which would overstock chilled milk. Polanco has 120 spare units, so a transfer of 80 from Polanco is the best option.",
+  "as_of": "2026-10-07T07:00:00",
+  "seed": {
+    "inventory": [{"node": "CDMX-01", "sku": "LECHE-LALA-1L", "on_hand": 160, "reserved": 0, "updated_hours_ago": 1},
+                  {"node": "CDMX-02", "sku": "LECHE-LALA-1L", "on_hand": 400, "reserved": 0, "updated_hours_ago": 1}],
+    "forecasts": [{"node": "CDMX-01", "sku": "LECHE-LALA-1L", "flat": 70, "days": 14},
+                  {"node": "CDMX-02", "sku": "LECHE-LALA-1L", "flat": 40, "days": 14}],
+    "sales": [{"node": "CDMX-01", "sku": "LECHE-LALA-1L", "flat": 70, "days": 28},
+              {"node": "CDMX-02", "sku": "LECHE-LALA-1L", "flat": 40, "days": 28}],
+    "supplier_terms": [{"supplier": "SUP-CEDA", "sku": "LECHE-LALA-1L", "moq": 480, "notes": "Solo despachamos tarimas completas (480 unidades)."}],
+    "purchase_orders": [{"id": "PO-2003", "node": "CDMX-01", "supplier": "SUP-LALA", "status": "PARTIALLY_CONFIRMED", "created_days_ago": 1,
+      "lines": [{"sku": "LECHE-LALA-1L", "qty": 500, "qty_confirmed": 250, "eta_day": 1}],
+      "events": [{"type": "SUBMITTED", "source": "system", "hours_ago": 23},
+                 {"type": "PARTIAL", "hours_ago": 1, "payload": {"qty_confirmed": 250, "backorder_eta_day": 6,
+                  "message": "Solo podemos enviar 250 unidades mañana. El resto en 6 días."}}]}],
+    "budgets": [{"category": "dairy", "currency": "MXN", "limit": 120000, "committed": 60000, "spent": 40000}],
+    "storage": [{"node": "CDMX-01", "zone": "chilled", "capacity": 1500, "used": 900}]
+  },
+  "trigger": {"type": "supplier_response", "node": "CDMX-01", "sku": "LECHE-LALA-1L", "po_id": "PO-2003",
+              "message": "Supplier SUP-LALA confirmed only 250 of 500 units on PO-2003."},
+  "supplier_behaviour": {"SUP-CEDA": [{"type": "CONFIRMED"}]},
+  "expected": {
+    "outcome": "MODIFY", "qty_min": 80, "qty_max": 80, "final_status": "COMPLETED", "option_kind": "TRANSFER",
+    "final_pos": [{"id": "PO-2003", "supplier": "SUP-LALA", "sku": "LECHE-LALA-1L", "qty_min": 250, "qty_max": 250, "status": "CONFIRMED"}],
+    "transfers": [{"from": "CDMX-02", "to": "CDMX-01", "sku": "LECHE-LALA-1L", "qty_min": 80, "qty_max": 80}],
+    "required_tools": ["get_open_pos", "get_inventory", "get_forecast", "calculate_net_requirement", "list_alternate_suppliers",
+                       "get_inventory_other_nodes", "generate_options"],
+    "computed": {
+      "horizon": 5, "demand": 350, "safety_stock": 140, "available": 160, "inbound": 250, "net": 80,
+      "projection_no_order": [90, 270, 200, 130, 60],
+      "alt_order_qty": 480, "alt_cover_after": 10.71, "alt_storage_free": 490,
+      "transfer_excess_cdmx02": 120, "transfer_qty": 80, "projection_with_transfer": [90, 350, 280, 210, 140]
+    }
+  },
+  "rationale": [
+    "horizon = 5; demand = 70 x 5 = 350; safety stock = 2 x 70 = 140; available = 160; inbound = 250 confirmed (day 1)",
+    "net = 350 + 140 - 160 - 250 = 80",
+    "without action: d0 90, d1 270, d2 200, d3 130, d4 60 -> no stockout, but 80 below safety stock by day 4",
+    "SUP-CEDA: max(80, MOQ 480) = 480; arrives day 2 on top of 270 -> cover (270+480)/70 = 10.71 > 10 (OVERSTOCK); it also needs approval (alternate supplier, +5.66% price)",
+    "transfer from CDMX-02: on hand 400 minus its own need (40x5 + 2x40 = 280) = 120 spare >= 80",
+    "transfer 80 arrives day 1 (intra-city transfer lead 1): d1 90+250+80-70 = 350, d2 280, d3 210, d4 140 = safety stock",
+    "Lala backorder (day 6) is outside the horizon and leaves the safety gap open -> ranked below the transfer",
+    "ranking (hard violations, stockout units, overstock, safety shortfall, cost): transfer (0,0,no,0) > backorder (0,0,no,80) > CEDA 480 (0,0,yes,0)",
+    "the transfer is internal and leaves CDMX-02 covered -> no approval needed; PO-2003 line reduced to the 250 confirmed"
+  ]
+}

@@ -63,3 +63,31 @@ are recorded here too.
 - **Why:** This is the simplest model that still keeps every past trace inspectable in the UI. The limitation:
   a run paused for approval can't be resumed after another scenario is loaded, so it is marked `SUPERSEDED`.
   Evals avoid this entirely by using a fresh in-memory database per run.
+
+## D8. Replenishment formula and its assumptions
+
+```
+horizon      = supplier lead time + product review period
+demand       = Σ daily forecast over the horizon (days 0 .. horizon−1)
+safety_stock = product safety_days × average daily demand over the horizon
+available    = on_hand − reserved
+inbound      = open PO lines arriving inside the horizon (confirmed qty if confirmed, else ordered)
+net          = demand + safety_stock − available − inbound
+order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
+```
+
+- **Safety stock as days of cover:** chosen over z·σ·√L. It is explainable to a buyer and checkable by hand.
+  Moving to a service-level formula is a next step and changes only one function.
+- **Inbound uses the supplier-confirmed quantity:** a PARTIAL confirmation of 250 counts as 250, not the 500 ordered.
+  This is exactly the question Scenario 2 asks.
+- **Projection convention:** level starts at `available`; receipts land at the start of their arrival day and that
+  day's demand is subtracted after. Stockout = end-of-day level < 0. The level "before arrival" of a new order is
+  the end-of-day level of the day before it lands.
+
+## D9. One decision vocabulary across scenarios
+
+- **Decision:** ACCEPT / MODIFY / REJECT / INVESTIGATE always describe what happens to the plan the agent was handed:
+  a recommendation (S1, S4), a partially confirmed PO (S2), or the existing PO plan (S3). The decision quantity is the
+  quantity of the chosen action: the recommended qty for ACCEPT, the new qty for MODIFY, the accepted 250 for an
+  accepted partial, and 0 for REJECT and INVESTIGATE.
+- **Why:** One grader and one decision card work for every scenario.

@@ -190,6 +190,7 @@ class SupplierResponse(_Strict):
 
 
 class ExpectedPO(_Strict):
+    id: str | None = None  # set when the PO already exists in the seed (e.g. acknowledged partial)
     supplier: str
     sku: str
     qty_min: int
@@ -202,8 +203,10 @@ class Expected(_Strict):
     qty_min: int
     qty_max: int
     final_status: Literal["COMPLETED", "ESCALATED", "AWAITING_APPROVAL"]
-    # Final new/changed POs the run must leave behind (in addition to untouched seed POs).
-    new_pos: list[ExpectedPO] = Field(default_factory=list)
+    # PURCHASE | TRANSFER | ACCEPT_PARTIAL | NO_ACTION | INVESTIGATE | ESCALATE
+    option_kind: str
+    # POs created or changed by the run, as they must look at the end (untouched seed POs are not listed).
+    final_pos: list[ExpectedPO] = Field(default_factory=list)
     transfers: list[dict[str, Any]] = Field(default_factory=list)
     approval_reasons: list[str] = Field(default_factory=list)  # policy reason codes that must be requested
     escalation: bool = False

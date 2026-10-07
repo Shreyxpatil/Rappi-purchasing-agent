@@ -1,0 +1,41 @@
+{
+  "id": "s1_already_covered",
+  "scenario": "S1",
+  "title": "Need already covered by an open PO: reject",
+  "description": "The recommendation for 200 trays of eggs ignores an open confirmed PO. With it, net requirement is negative.",
+  "as_of": "2026-10-07T07:00:00",
+  "seed": {
+    "inventory": [{"node": "BOG-01", "sku": "HUEVOS-AA-30", "on_hand": 140, "reserved": 5, "updated_hours_ago": 1}],
+    "forecasts": [{"node": "BOG-01", "sku": "HUEVOS-AA-30", "flat": 25, "days": 14}],
+    "sales": [{"node": "BOG-01", "sku": "HUEVOS-AA-30", "flat": 25, "days": 28}],
+    "purchase_orders": [{"id": "PO-1002", "node": "BOG-01", "supplier": "SUP-KIKES", "status": "CONFIRMED", "created_days_ago": 1,
+      "lines": [{"sku": "HUEVOS-AA-30", "qty": 80, "qty_confirmed": 80, "eta_day": 1}],
+      "events": [{"type": "CONFIRMED", "hours_ago": 18, "payload": {"qty_confirmed": 80}}]}],
+    "budgets": [{"category": "eggs", "currency": "COP", "limit": 8000000, "committed": 3000000, "spent": 2000000}],
+    "storage": [{"node": "BOG-01", "zone": "ambient", "capacity": 6000, "used": 3500}],
+    "recommendations": [{"id": "REC-103", "node": "BOG-01", "sku": "HUEVOS-AA-30", "supplier": "SUP-KIKES", "qty": 200}]
+  },
+  "trigger": {"type": "recommendation_review", "node": "BOG-01", "sku": "HUEVOS-AA-30", "recommendation_id": "REC-103",
+              "message": "Replenishment system recommends buying 200 trays."},
+  "supplier_behaviour": {},
+  "expected": {
+    "outcome": "REJECT", "qty_min": 0, "qty_max": 0, "final_status": "COMPLETED", "option_kind": "NO_ACTION",
+    "required_tools": ["get_inventory", "get_forecast", "get_open_pos", "get_supplier_terms", "calculate_net_requirement"],
+    "forbidden_tools": ["create_po_draft", "submit_po"],
+    "recommendation_violations": ["BUDGET_EXCEEDED", "OVERSTOCK"],
+    "computed": {
+      "lead_time_days": 2, "review_period_days": 3, "horizon": 5, "demand": 125, "safety_stock": 50,
+      "available": 135, "inbound": 80, "net": -40, "order_qty": 0, "pre_arrival_level": 165,
+      "budget_remaining": 3000000, "rec_value": 3300000, "rec_cover": 14.6
+    }
+  },
+  "rationale": [
+    "horizon = lead time 2 (SUP-KIKES) + review period 3 = 5 days",
+    "demand = 25 x 5 = 125; safety stock = 2 x 25 = 50",
+    "available = 140 - 5 = 135; inbound = PO-1002 80 trays confirmed, arriving day 1",
+    "net = 125 + 50 - 135 - 80 = -40 <= 0 -> nothing to buy -> REJECT",
+    "the recommendation (200) looks like it ignored PO-1002",
+    "if bought anyway: arrival day 2, level before = 135 - 25 + 80 - 25 = 165; cover (165+200)/25 = 14.6 > 14 (OVERSTOCK)",
+    "200 x 16,500 = 3,300,000 COP > budget remaining 8,000,000-3,000,000-2,000,000 = 3,000,000 (BUDGET_EXCEEDED)"
+  ]
+}

@@ -16,7 +16,8 @@ def _fixture(**seed) -> ScenarioFixture:
         "seed": seed,
         "trigger": {"type": "recommendation_review", "node": "BOG-01", "sku": "LECHE-ALQ-1L"},
         "supplier_behaviour": {"SUP-ALQ": [{"type": "PARTIAL", "qty": 250}]},
-        "expected": {"outcome": "ACCEPT", "qty_min": 0, "qty_max": 0, "final_status": "COMPLETED"},
+        "expected": {"outcome": "ACCEPT", "qty_min": 0, "qty_max": 0, "final_status": "COMPLETED",
+                     "option_kind": "NO_ACTION"},
         "rationale": ["test"],
     })
 

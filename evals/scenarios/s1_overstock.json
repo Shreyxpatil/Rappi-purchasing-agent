@@ -1,0 +1,52 @@
+{
+  "id": "s1_overstock",
+  "scenario": "S1",
+  "title": "Recommendation of 800 would overstock: modify to 240",
+  "description": "The replenishment system recommends 800 units of Leche Alquería 1L for Chapinero. The agent's own requirement is far lower and 800 breaks storage, budget, case pack and the 10-day cover limit for chilled dairy.",
+  "as_of": "2026-10-07T07:00:00",
+  "seed": {
+    "inventory": [{"node": "BOG-01", "sku": "LECHE-ALQ-1L", "on_hand": 180, "reserved": 20, "updated_hours_ago": 2}],
+    "forecasts": [{"node": "BOG-01", "sku": "LECHE-ALQ-1L", "flat": 60, "days": 14}],
+    "sales": [{"node": "BOG-01", "sku": "LECHE-ALQ-1L", "flat": 60, "days": 28}],
+    "purchase_orders": [{"id": "PO-1001", "node": "BOG-01", "supplier": "SUP-ALQ", "status": "CONFIRMED", "created_days_ago": 1,
+      "lines": [{"sku": "LECHE-ALQ-1L", "qty": 120, "qty_confirmed": 120, "eta_day": 2}],
+      "events": [{"type": "CONFIRMED", "hours_ago": 20, "payload": {"qty_confirmed": 120}}]}],
+    "budgets": [{"category": "dairy", "currency": "COP", "limit": 20000000, "committed": 12000000, "spent": 5000000}],
+    "storage": [{"node": "BOG-01", "zone": "chilled", "capacity": 2000, "used": 1400}],
+    "recommendations": [{"id": "REC-101", "node": "BOG-01", "sku": "LECHE-ALQ-1L", "supplier": "SUP-ALQ", "qty": 800}]
+  },
+  "trigger": {"type": "recommendation_review", "node": "BOG-01", "sku": "LECHE-ALQ-1L", "recommendation_id": "REC-101",
+              "message": "Replenishment system recommends buying 800 units."},
+  "supplier_behaviour": {"SUP-ALQ": [{"type": "CONFIRMED"}]},
+  "expected": {
+    "outcome": "MODIFY", "qty_min": 240, "qty_max": 240, "final_status": "COMPLETED", "option_kind": "PURCHASE",
+    "final_pos": [{"supplier": "SUP-ALQ", "sku": "LECHE-ALQ-1L", "qty_min": 240, "qty_max": 240, "status": "CONFIRMED"}],
+    "required_tools": ["get_inventory", "get_forecast", "get_open_pos", "get_supplier_terms", "get_budget",
+                       "get_storage_capacity", "calculate_net_requirement", "generate_options"],
+    "recommendation_violations": ["CASE_PACK_MISMATCH", "STORAGE_EXCEEDED", "BUDGET_EXCEEDED", "OVERSTOCK"],
+    "computed": {
+      "lead_time_days": 3, "review_period_days": 2, "horizon": 5, "demand": 300, "safety_stock": 120,
+      "available": 160, "inbound": 120, "net": 140, "order_qty": 240,
+      "projection_no_order": [100, 40, 100, 40, -20], "pre_arrival_level": 100,
+      "storage_free_at_arrival": 680, "max_qty_storage": 672,
+      "budget_remaining": 3000000, "max_qty_budget": 708, "max_qty_cover": 492,
+      "cover_after_order": 5.67, "order_value": 1008000, "rec_value": 3360000, "rec_cover": 15.0
+    }
+  },
+  "rationale": [
+    "horizon = lead time 3 (SUP-ALQ) + review period 2 = 5 days",
+    "demand = 60/day x 5 = 300; safety stock = 2 safety days x 60 = 120",
+    "available = on_hand 180 - reserved 20 = 160; inbound = PO-1001 120 confirmed, arriving day 2 (inside horizon)",
+    "net = 300 + 120 - 160 - 120 = 140",
+    "order = max(140, MOQ 240) = 240, already a multiple of case pack 12 -> 240",
+    "projection without order (end of day): d0 160-60=100, d1 40, d2 40+120-60=100, d3 40, d4 -20 -> stockout on day 4 without action",
+    "new order arrives day 3 (lead 3): level before arrival = end of day 2 = 100",
+    "storage: chilled capacity 2000, used 1400 of which 180 is this SKU -> other SKUs 1220; free at arrival = 2000 - 1220 - 100 = 680 -> max 672 (floor to 12)",
+    "budget dairy COP: 20,000,000 - 12,000,000 - 5,000,000 = 3,000,000 -> max floor(3,000,000/4,200)=714 -> 708 (floor to 12)",
+    "cover limit 10 days x 60 = 600 units at arrival -> max order 600 - 100 = 500 -> 492 (floor to 12)",
+    "recommendation 800: 800/12 not whole (CASE_PACK_MISMATCH); 800 > 672 (STORAGE_EXCEEDED); 800 x 4,200 = 3,360,000 > 3,000,000 (BUDGET_EXCEEDED); cover (100+800)/60 = 15 > 10 (OVERSTOCK)",
+    "240 passes everything: value 1,008,000 COP < auto-approve threshold 3,000,000 -> executes without approval",
+    "after confirmation: d3 100+240-60=280, d4 220; minimum level 40 >= 0, cover at arrival 340/60 = 5.67 <= 10 -> outcome check passes",
+    "|800-240|/240 = 233% > 10% tolerance -> MODIFY"
+  ]
+}

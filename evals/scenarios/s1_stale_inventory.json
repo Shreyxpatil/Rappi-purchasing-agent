@@ -1,0 +1,38 @@
+{
+  "id": "s1_stale_inventory",
+  "scenario": "S1",
+  "title": "Inventory count is 72h old: investigate",
+  "description": "Usaquén's milk count has not been updated for 3 days while sales kept flowing. Trusting the record says buy nothing; adjusting for sales since the count says buy 240. The data cannot support either decision.",
+  "as_of": "2026-10-07T07:00:00",
+  "seed": {
+    "inventory": [{"node": "BOG-02", "sku": "LECHE-ALQ-1L", "on_hand": 420, "reserved": 0, "updated_hours_ago": 72}],
+    "forecasts": [{"node": "BOG-02", "sku": "LECHE-ALQ-1L", "flat": 60, "days": 14}],
+    "sales": [{"node": "BOG-02", "sku": "LECHE-ALQ-1L", "flat": 60, "days": 28}],
+    "budgets": [{"category": "dairy", "currency": "COP", "limit": 20000000, "committed": 12000000, "spent": 5000000}],
+    "storage": [{"node": "BOG-02", "zone": "chilled", "capacity": 1800, "used": 1200}],
+    "recommendations": [{"id": "REC-104", "node": "BOG-02", "sku": "LECHE-ALQ-1L", "supplier": "SUP-ALQ", "qty": 400}]
+  },
+  "trigger": {"type": "recommendation_review", "node": "BOG-02", "sku": "LECHE-ALQ-1L", "recommendation_id": "REC-104",
+              "message": "Replenishment system recommends buying 400 units."},
+  "supplier_behaviour": {},
+  "expected": {
+    "outcome": "INVESTIGATE", "qty_min": 0, "qty_max": 0, "final_status": "ESCALATED", "option_kind": "INVESTIGATE",
+    "escalation": true,
+    "required_tools": ["get_inventory", "get_sales_history", "get_forecast", "calculate_net_requirement"],
+    "forbidden_tools": ["create_po_draft", "submit_po"],
+    "computed": {
+      "inventory_age_hours": 72, "horizon": 5, "demand": 300, "safety_stock": 120,
+      "available": 420, "net": 0, "sales_since_count": 180, "available_adjusted": 240, "net_adjusted": 180,
+      "order_qty_adjusted": 240
+    }
+  },
+  "rationale": [
+    "inventory updated 72h ago > 24h freshness limit -> stale",
+    "as recorded: available 420; net = 300 + 120 - 420 - 0 = 0 -> nothing to buy",
+    "sales since the count (days -3..-1): 3 x 60 = 180 -> plausible available 420 - 180 = 240",
+    "adjusted: net = 300 + 120 - 240 = 180 -> max(180, MOQ 240) = 240",
+    "the decision flips between REJECT and buying 240 depending on data we cannot trust -> INVESTIGATE",
+    "information that would change the decision: a fresh cycle count of LECHE-ALQ-1L at BOG-02",
+    "no PO may be created; the run ends escalated with an information request"
+  ]
+}
