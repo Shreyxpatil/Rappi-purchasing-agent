@@ -129,3 +129,10 @@ def test_text_instead_of_a_tool_call_counts_as_malformed(run_case) -> None:
     _, run, _, _ = run_case("s1_overstock", turns)
     assert run.status == "ESCALATED"
     assert [st.kind for st in run.steps].count("nudge") == 2
+
+
+def test_control_tool_results_are_recorded_under_the_state_that_ran_them(run_case) -> None:
+    _, run, _, _ = run_case("s1_overstock")
+    by_name = {st.name: st.state for st in run.steps if st.kind == "tool"}
+    assert by_name["propose_decision"] == "INVESTIGATE"
+    assert by_name["finish_execution"] == "EXECUTE"

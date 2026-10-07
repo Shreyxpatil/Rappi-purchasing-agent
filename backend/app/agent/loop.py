@@ -240,7 +240,7 @@ class PurchasingAgent:
         d["reasons"] = args.reasons
         r.ctx.state.decision = d
         r.run.decision = d
-        r.rec.transition(State.DECIDE)
+        r.extra["next_state"] = State.DECIDE
         return {"ok": True, "output": {"outcome": d["outcome"], "quantity": d["quantity"], "option_id": d["option_id"]}}
 
     def _finish(self, r: _Run, call: ToolCall) -> dict[str, Any]:
@@ -253,9 +253,9 @@ class PurchasingAgent:
             r.extra["incomplete_finishes"] += 1
             if r.extra["incomplete_finishes"] >= 2:
                 self._escalate(r, "EXECUTION_INCOMPLETE", "decided option not fully executed", gaps)
-                r.rec.transition(State.REPORT, "execution incomplete")
+                r.extra["next_state"] = State.REPORT
             return _error("EXECUTION_INCOMPLETE", "the decided option is not fully executed", {"missing": gaps})
-        r.rec.transition(State.REPORT)
+        r.extra["next_state"] = State.REPORT
         return {"ok": True, "output": {"executed": True}}
 
     def _execution_gaps(self, r: _Run) -> list[str]:
@@ -370,6 +370,9 @@ class PurchasingAgent:
             r.extra["invalid_calls"] = r.extra.get("invalid_calls", 0) + 1
         r.messages.append(Message(role="tool", name=call.name, tool_call_id=call.id,
                                   content=json.dumps(payload, separators=(",", ":"), default=str)))
+        next_state = r.extra.pop("next_state", None)
+        if next_state:  # control tools move the machine only after their own result is on the record
+            r.rec.transition(next_state)
 
     def _nudge(self, r: _Run, text: str) -> None:
         """The model answered with text where a tool call was required: tell it once (counts as malformed)."""
