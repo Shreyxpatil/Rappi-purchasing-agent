@@ -327,3 +327,14 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
 - **Alternatives:** A free-form ReAct loop where the model decides when it is done; an agent framework.
 - **Why:** The brief rewards validated, explainable behaviour. With explicit states, every guardrail is a few
   lines of code in one place, and the trace reads as a sequence of named transitions an evaluator can check.
+
+## D23. Malformed tool calls: one correction, then the step fails cleanly
+
+- **Decision:** Every tool call is validated against its Pydantic schema before running. Malformed means
+  `INVALID_ARGUMENTS`, `UNKNOWN_TOOL`, `TOOL_NOT_ALLOWED_IN_STATE`, or a text-only reply where a tool call was
+  required. The validation error (with field locations) goes back to the model as the tool result. Two malformed
+  turns in a row fail the step: the run escalates with `MALFORMED_TOOL_CALLS` instead of looping. A successful call
+  resets the count. Business errors (`BLOCKED`, `MISSING_EVIDENCE`) are not counted here: the gate and the
+  checklist handle them.
+- **Why:** Free-tier models occasionally drop a field or invent a tool. One correction usually fixes it. A model
+  that cannot produce a valid call twice running is not going to make a safe purchase on the third try.

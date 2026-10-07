@@ -134,3 +134,32 @@ def test_stale_data_blocks_acting_and_forces_investigation(run_case) -> None:
     turns = script[:2] + [{"tool_calls": [{"name": "propose_decision", "args": {"option_id": "NO_ACTION"}}]}]
     _, run, _, _ = run_case("s1_stale_inventory", turns)
     assert _tool_errors(run) == [("propose_decision", "DATA_BLOCKS_DECISION")]
+
+
+def _script(case_id):
+    return json.loads(open(f"evals/scripts/{case_id}.json").read())["turns"]
+
+
+def test_one_malformed_call_gets_the_schema_error_and_the_run_recovers(run_case) -> None:
+    bad = {"tool_calls": [{"name": "get_inventory", "args": {"node": "BOG-01"}}]}  # sku missing
+    _, run, _, _ = run_case("s1_overstock", [bad] + _script("s1_overstock"))
+    err = next(st for st in run.steps if st.kind == "tool" and not st.ok)
+    assert err.output["error"]["code"] == "INVALID_ARGUMENTS"
+    assert err.output["error"]["details"]["errors"] == [{"loc": "sku", "msg": "Field required"}]
+    assert run.status == "COMPLETED" and run.decision["quantity"] == 240
+
+
+def test_two_malformed_turns_in_a_row_fail_the_step_and_escalate(run_case) -> None:
+    turns = [{"tool_calls": [{"name": "get_inventory", "args": {"node": "BOG-01", "qty": 10000}}]},
+             {"tool_calls": [{"name": "buy_now", "args": {}}]}]
+    _, run, _, _ = run_case("s1_overstock", turns)
+    assert run.status == "ESCALATED"
+    assert next(st for st in run.steps if st.kind == "escalation").name == "MALFORMED_TOOL_CALLS"
+    assert _tool_errors(run) == [("get_inventory", "INVALID_ARGUMENTS"), ("buy_now", "TOOL_NOT_ALLOWED_IN_STATE")]
+
+
+def test_text_instead_of_a_tool_call_counts_as_malformed(run_case) -> None:
+    turns = [{"text": "I think we should buy 800."}, {"text": "Buy 800."}]
+    _, run, _, _ = run_case("s1_overstock", turns)
+    assert run.status == "ESCALATED"
+    assert [st.kind for st in run.steps].count("nudge") == 2
