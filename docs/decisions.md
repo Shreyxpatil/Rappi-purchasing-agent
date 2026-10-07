@@ -220,3 +220,18 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
   completely); ignore staleness when the order is unchanged (hides a real risk from the approver).
 - **Why:** A blunt freshness threshold would halt purchasing every time a count is a few hours late. Testing whether
   the stale input actually matters is the cheap, explainable middle ground.
+
+## D17. Tool contract: typed inputs, structured errors, freshness on every read
+
+- **Decision:** Every tool has a Pydantic input model with `extra="forbid"`, so unknown arguments such as a stray
+  `qty` are rejected rather than ignored. Every failure comes back as `{code, message, details}`:
+  - `INVALID_ARGUMENTS` (with field locations), `UNKNOWN_TOOL`, `NOT_FOUND`: the caller's mistake;
+  - `MISSING_DATA`: the business data does not exist.
+
+  `NOT_FOUND` vs `MISSING_DATA` matters: the first means "fix your call", the second may mean INVESTIGATE. Every
+  read returns `freshness {source, updated_at, age_hours, limit_hours, stale}` measured on the scenario clock, and
+  supplier text is only ever in `untrusted_text`.
+- **Single adapter:** `tools/data.py` is the only code that turns rows into engine inputs. Read tools show the same
+  numbers that compute tools feed the engine.
+- **Sales since the count:** this includes the count's own calendar day. That is conservative: it slightly
+  over-estimates depletion, which is the safer direction for deciding whether stale data matters.
