@@ -102,3 +102,15 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
   the note and the gate blocks it, the system is safe but the model is not trustworthy, and the report should say
   exactly that. Showing both demonstrates defence in depth: the prompt asks the model to treat supplier text as data,
   and the code makes it irrelevant whether it does.
+
+## D11. Approval requests present the alternatives, not only the request
+
+- **Decision:** When the top-ranked option needs approval because another option exists that does not, the approval
+  request carries both side by side. For budget-binding the two are:
+  - **A:** 714 units, 4,141,200 COP, 2,141,200 over budget, no stockout.
+  - **B:** 342 units, within budget, stockout on day 7 with 128 units unmet.
+
+  The numbers come from the engine's option list, not from the LLM.
+- **Alternatives:** An approve/reject on the single proposed action, with a free-text explanation.
+- **Why:** A human can't make a good override decision without seeing the cost of saying no. Showing the fallback's
+  stockout day turns "approve 4.1M COP?" into the real trade-off: 2.1M over budget versus losing sales from day 7.

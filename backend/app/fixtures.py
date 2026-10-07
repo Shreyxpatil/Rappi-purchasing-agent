@@ -209,6 +209,8 @@ class Expected(_Strict):
     final_pos: list[ExpectedPO] = Field(default_factory=list)
     transfers: list[dict[str, Any]] = Field(default_factory=list)
     approval_reasons: list[str] = Field(default_factory=list)  # policy reason codes that must be requested
+    # Options the approval request must present side by side; each dict lists fields that must match.
+    approval_alternatives: list[dict[str, Any]] = Field(default_factory=list)
     escalation: bool = False
     min_replans: int = 0
     required_tools: list[str] = Field(default_factory=list)

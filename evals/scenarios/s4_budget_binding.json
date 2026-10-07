@@ -20,6 +20,10 @@
     "outcome": "MODIFY", "qty_min": 714, "qty_max": 714, "final_status": "COMPLETED", "option_kind": "PURCHASE",
     "final_pos": [{"supplier": "SUP-FEMSA-CO", "sku": "COCA-1.5L", "qty_min": 714, "qty_max": 714, "status": "CONFIRMED"}],
     "approval_reasons": ["BUDGET_OVERRIDE", "OVER_AUTO_LIMIT"],
+    "approval_alternatives": [
+      {"qty": 714, "value": 4141200, "over_budget": 2141200, "stockout_day": null},
+      {"qty": 342, "value": 1983600, "over_budget": 0, "stockout_day": 7, "unmet_units": 128}
+    ],
     "required_tools": ["get_inventory", "get_forecast", "get_open_pos", "get_supplier_terms", "get_budget",
                        "get_storage_capacity", "calculate_net_requirement", "generate_options"],
     "recommendation_violations": ["BUDGET_EXCEEDED"],
@@ -39,6 +43,7 @@
     "option A, full 714: value 4,141,200 COP > budget 2,000,000 (needs BUDGET_OVERRIDE) and > auto limit 3,000,000 (OVER_AUTO_LIMIT); no stockout, cover (90+714)/80 = 10.05 <= 30; storage free 5000-(3000-250)-90 = 2160",
     "option B, budget-capped: floor(2,000,000/5,800)=344 -> case 6 -> 342 (1,983,600 COP). Arrives on 90: d2 352, d3 272, d4 192, d5 112, d6 32, d7 -48, d8 -128 -> 128 units unmet from day 7",
     "constraint priority: budget is hard UNLESS a human overrides it, and avoiding stockout ranks above cost -> A is ranked first and routed to approval, B is the fallback if the override is refused",
+    "the approval request shows both side by side: A = 714 units, 4,141,200 COP, 2,141,200 over budget, no stockout; B = 342 units, 1,983,600 COP, within budget, stockout on day 7 (128 units unmet)",
     "approval given -> submit 714 -> confirmed -> outcome check: lowest level d8 = 804 - 7x80 = 244 >= 0"
   ]
 }
