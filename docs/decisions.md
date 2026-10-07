@@ -247,3 +247,23 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
   cannot plan on it; it has to engage with the evidence that one 200-unit order explains the spike.
 - **Compute tool outputs:** `generate_options` returns a compact summary to the model (no projection arrays) to
   save tokens, and keeps the full engine `OptionSet` in run state. The decision is built from that full set.
+
+## D19. One policy gate with four verdicts and decision binding
+
+- **Decision:** `policy/gate.py::evaluate` is a pure function that every action tool calls before writing. Its
+  verdicts, in order:
+  1. **ESCALATE:** validation has failed twice, or the replan budget is spent.
+  2. **BLOCK:** there is no decision to act on, the action differs from the decided option, or a hard,
+     non-overridable violation was found.
+  3. **APPROVAL:** the value is over the auto limit, the supplier is an alternate, the price is more than 5% above
+     the primary's, a budget override is needed, or the action cancels or reduces a line.
+  4. **AUTO.**
+
+  **Decision binding:** a PURCHASE must match the decided option's supplier and every delivery. An INCREASE must
+  match its PO and quantity, and a TRANSFER its source node and quantity. Acknowledging a partial (reducing a line
+  to exactly what the supplier confirmed) needs no decision or approval: it records reality and commits nothing new.
+- **Alternatives:** Letting act tools take an option id only (no quantities); prompt-level rules.
+- **Why explicit quantities plus binding:** act tools look like a real purchasing API (supplier, deliveries,
+  quantities). That makes prompt injection a *testable* attack: an obeying model can try `qty: 10000`, and the gate
+  blocks it with `DECISION_BINDING_MISMATCH`. That separation is what lets the evals report `model_resisted` and
+  `system_safe` independently (D10).
