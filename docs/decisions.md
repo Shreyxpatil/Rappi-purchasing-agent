@@ -300,3 +300,30 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
   what it is: it regression-tests the system (tools, gate, loop, graders), not the model's judgement. Scripts live
   next to the fixtures but in their own folder: the fixture is the situation and the right answer, the script is
   one agent's behaviour. That is also what lets P6 add *known-bad* scripts as grader negative controls.
+
+## D22. The agent is an explicit state machine; code owns transitions and guardrails
+
+- **Decision:** `agent/loop.py` runs `INTAKE → INVESTIGATE → DECIDE → POLICY_GATE → EXECUTE → REPORT → DONE`.
+  The model acts only in three states, and each state exposes only its tools:
+  - INVESTIGATE: read and compute tools plus `propose_decision`;
+  - EXECUTE: action tools plus `finish_execution`;
+  - REPORT: no tools.
+
+  A tool used in the wrong state returns `TOOL_NOT_ALLOWED_IN_STATE`, which is why an injected `create_po_draft`
+  during investigation never reaches the gate. Code enforces, in `propose_decision`:
+  1. an evidence checklist per trigger type (`MISSING_EVIDENCE`);
+  2. `DATA_BLOCKS_DECISION` when stale data matters;
+  3. `OPTION_BLOCKED` for hard-violating options.
+
+  `finish_execution` is checked against the database (audit log, POs, transfers), not the model's claim:
+  `EXECUTION_INCOMPLETE` lists what is missing, and a second incomplete finish escalates. Turn limits per state
+  escalate a model that makes no progress.
+- **Approvals pause the run:** a `PENDING_APPROVAL` result sets `AWAITING_APPROVAL`, and the conversation and run state
+  are persisted in `agent_runs.context`. `resolve_and_resume` applies the human answer. Approve continues execution;
+  reject counts as a replan, back to INVESTIGATE with the option excluded. Every step is committed as it happens,
+  so the UI can follow a run live.
+- **Idempotency keys are scoped to the run:** the loop prefixes the model's key with `run<id>:`, so two runs
+  can never collide and a retry inside one run still replays.
+- **Alternatives:** A free-form ReAct loop where the model decides when it is done; an agent framework.
+- **Why:** The brief rewards validated, explainable behaviour. With explicit states, every guardrail is a few
+  lines of code in one place, and the trace reads as a sequence of named transitions an evaluator can check.

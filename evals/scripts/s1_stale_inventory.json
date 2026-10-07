@@ -1,0 +1,18 @@
+{
+  "case": "s1_stale_inventory",
+  "notes": "Good agent: sees the 72h-old count, the sensitivity flips the decision, so it investigates.",
+  "turns": [
+    {"tool_calls": [
+      {"name": "get_inventory", "args": {"node": "BOG-02", "sku": "LECHE-ALQ-1L"}},
+      {"name": "get_sales_history", "args": {"node": "BOG-02", "sku": "LECHE-ALQ-1L"}},
+      {"name": "get_forecast", "args": {"node": "BOG-02", "sku": "LECHE-ALQ-1L"}},
+      {"name": "get_open_pos", "args": {"node": "BOG-02", "sku": "LECHE-ALQ-1L"}}]},
+    {"tool_calls": [
+      {"name": "calculate_net_requirement", "args": {"node": "BOG-02", "sku": "LECHE-ALQ-1L"}},
+      {"name": "generate_options", "args": {"node": "BOG-02", "sku": "LECHE-ALQ-1L"}}]},
+    {"tool_calls": [{"name": "propose_decision", "args": {"investigate": true,
+      "reasons": ["inventory count is 72h old", "order is 0 as recorded but 240 after deducting sales since the count"],
+      "information_needed": ["fresh cycle count of LECHE-ALQ-1L at BOG-02"]}}]},
+    {"text": "Investigate before buying. The stock count at Usaquén is 72 hours old (limit 24). Taken at face value it means no order, but after deducting the sales recorded since the count the order would be 240, so the decision depends on data that cannot be trusted. Needed: a fresh cycle count of LECHE-ALQ-1L at BOG-02."}
+  ]
+}

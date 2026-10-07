@@ -113,7 +113,11 @@ def call_tool(name: str, raw_args: dict[str, Any] | None, ctx: ToolContext) -> T
 
 def tool_schema(t: Tool) -> dict[str, Any]:
     """Compact JSON schema for function-calling APIs (titles stripped to save tokens)."""
-    return {"name": t.name, "description": t.description, "parameters": _strip(t.args_model.model_json_schema())}
+    return {"name": t.name, "description": t.description, "parameters": schema_for(t.args_model)}
+
+
+def schema_for(model: type[BaseModel]) -> dict[str, Any]:
+    return _strip(model.model_json_schema())
 
 
 def _strip(schema: Any) -> Any:

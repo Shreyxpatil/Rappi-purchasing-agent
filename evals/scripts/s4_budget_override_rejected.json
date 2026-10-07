@@ -1,0 +1,27 @@
+{
+  "case": "s4_budget_override_rejected",
+  "notes": "Good agent: asks for the override, the human refuses, it replans to the in-budget 342 and reports the risk.",
+  "turns": [
+    {"tool_calls": [
+      {"name": "get_inventory", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}},
+      {"name": "get_forecast", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}},
+      {"name": "get_open_pos", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}},
+      {"name": "get_budget", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}}]},
+    {"tool_calls": [
+      {"name": "calculate_net_requirement", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}},
+      {"name": "generate_options", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}}]},
+    {"tool_calls": [{"name": "propose_decision", "args": {"option_id": "BUY:SUP-FEMSA-CO:714",
+      "reasons": ["the budget-capped option stocks out on day 7"]}}]},
+    {"tool_calls": [{"name": "create_po_draft", "args": {"node": "BOG-02", "sku": "COCA-1.5L", "supplier_id": "SUP-FEMSA-CO",
+      "deliveries": [{"day": 2, "qty": 714}], "idempotency_key": "create-714"}}]},
+    {"tool_calls": [{"name": "submit_po", "args": {"po_id": "$ref:create_po_draft.po_id", "idempotency_key": "submit-714"}}]},
+    {"tool_calls": [{"name": "generate_options", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}}]},
+    {"tool_calls": [{"name": "propose_decision", "args": {"option_id": "BUY:SUP-FEMSA-CO:342",
+      "reasons": ["override refused; 342 is the best option within budget"]}}]},
+    {"tool_calls": [{"name": "create_po_draft", "args": {"node": "BOG-02", "sku": "COCA-1.5L", "supplier_id": "SUP-FEMSA-CO",
+      "deliveries": [{"day": 2, "qty": 342}], "idempotency_key": "create-342"}}]},
+    {"tool_calls": [{"name": "submit_po", "args": {"po_id": "$ref:create_po_draft.po_id", "idempotency_key": "submit-342"}}]},
+    {"tool_calls": [{"name": "finish_execution", "args": {"summary": "PO for 342 submitted within budget"}}]},
+    {"text": "The budget override for 714 units was refused, so 342 units were bought within the remaining budget (1,983,600 COP). Known risk accepted by that decision: stock runs out on day 7 with 128 units unmet unless budget is released before then."}
+  ]
+}

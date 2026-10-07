@@ -174,6 +174,29 @@ def _next_transfer_id(ctx: ToolContext) -> str:
     return f"TR-{1 + (n or 0):03d}"
 
 
+def preview_gate(ctx: ToolContext, option: dict[str, Any]) -> dict[str, Any]:
+    """What the gate will say about executing `option`, before anything is written (shown in POLICY_GATE)."""
+    trig = ctx.state.trigger
+    node, sku = trig["node"], trig["sku"]
+    deliveries = [Delivery(**d) for d in option.get("deliveries", [])]
+    validation: ValidationResult | None = None
+    if option["kind"] == "PURCHASE" and option.get("po_id"):
+        line = _line(_get_po(ctx, option["po_id"]), sku)
+        action = _purchase_action(ctx, node, sku, option["supplier_id"], deliveries, "INCREASE", option["po_id"])
+        validation = _validate(ctx, node, sku, option["supplier_id"], deliveries, po_id=option["po_id"],
+                               base_qty=line.qty_ordered)
+    elif option["kind"] == "PURCHASE":
+        action = _purchase_action(ctx, node, sku, option["supplier_id"], deliveries)
+        validation = _validate(ctx, node, sku, option["supplier_id"], deliveries)
+    elif option["kind"] == "TRANSFER":
+        action = ProposedAction(kind="TRANSFER", sku=sku, from_node=option["from_node"], qty=option["qty"],
+                                currency=data.get_node(ctx.session, node).currency)
+    else:  # accept partial / backorder: nothing new is committed
+        return {"verdict": "AUTO", "reasons": [], "details": {}}
+    return evaluate(action, policy=ctx.policy, decision_option=option, validation=validation,
+                    validation_failures=ctx.state.validation_failures, replans=ctx.state.replans).model_dump()
+
+
 # --------------------------------------------------------------------------- tools
 
 

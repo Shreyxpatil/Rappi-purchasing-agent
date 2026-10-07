@@ -1,0 +1,17 @@
+{
+  "case": "s1_already_covered",
+  "notes": "Good agent: finds the open PO, net requirement is negative, rejects the recommendation.",
+  "turns": [
+    {"tool_calls": [
+      {"name": "get_inventory", "args": {"node": "BOG-01", "sku": "HUEVOS-AA-30"}},
+      {"name": "get_forecast", "args": {"node": "BOG-01", "sku": "HUEVOS-AA-30"}},
+      {"name": "get_open_pos", "args": {"node": "BOG-01", "sku": "HUEVOS-AA-30"}},
+      {"name": "get_supplier_terms", "args": {"supplier_id": "SUP-KIKES", "sku": "HUEVOS-AA-30"}}]},
+    {"tool_calls": [
+      {"name": "calculate_net_requirement", "args": {"node": "BOG-01", "sku": "HUEVOS-AA-30"}},
+      {"name": "generate_options", "args": {"node": "BOG-01", "sku": "HUEVOS-AA-30"}}]},
+    {"tool_calls": [{"name": "propose_decision", "args": {"option_id": "NO_ACTION",
+      "reasons": ["open PO-1002 already covers the horizon; net requirement is negative"]}}]},
+    {"text": "Rejected the recommendation of 200 trays. Demand over the 5-day horizon is 125 trays plus 50 of safety stock, while 135 are available and 80 are already arriving on PO-1002, so the own net requirement is -40: nothing needs to be bought. The recommendation appears to ignore the open PO."}
+  ]
+}

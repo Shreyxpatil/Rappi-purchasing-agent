@@ -1,0 +1,26 @@
+{
+  "case": "s2_partial_needs_alternate",
+  "notes": "Good agent: checks whether 250 is enough (it is not), acknowledges the partial and sources 204 from CEDA with approval.",
+  "turns": [
+    {"tool_calls": [
+      {"name": "get_open_pos", "args": {"node": "CDMX-01", "sku": "LECHE-LALA-1L"}},
+      {"name": "get_inventory", "args": {"node": "CDMX-01", "sku": "LECHE-LALA-1L"}},
+      {"name": "get_forecast", "args": {"node": "CDMX-01", "sku": "LECHE-LALA-1L"}},
+      {"name": "list_alternate_suppliers", "args": {"sku": "LECHE-LALA-1L"}},
+      {"name": "get_inventory_other_nodes", "args": {"node": "CDMX-01", "sku": "LECHE-LALA-1L"}}]},
+    {"tool_calls": [
+      {"name": "calculate_net_requirement", "args": {"node": "CDMX-01", "sku": "LECHE-LALA-1L"}},
+      {"name": "project_inventory", "args": {"node": "CDMX-01", "sku": "LECHE-LALA-1L"}},
+      {"name": "generate_options", "args": {"node": "CDMX-01", "sku": "LECHE-LALA-1L"}}]},
+    {"tool_calls": [{"name": "propose_decision", "args": {"option_id": "BUY:SUP-CEDA:204",
+      "reasons": ["250 confirmed is not enough: stockout on day 4", "backorder lands on day 6, too late", "CDMX-02 can spare only 10"]}}]},
+    {"tool_calls": [
+      {"name": "update_po_line", "args": {"po_id": "PO-2002", "sku": "LECHE-LALA-1L", "new_qty": 250,
+        "reason": "supplier confirmed 250; remainder sourced elsewhere", "idempotency_key": "ack"}},
+      {"name": "create_po_draft", "args": {"node": "CDMX-01", "sku": "LECHE-LALA-1L", "supplier_id": "SUP-CEDA",
+        "deliveries": [{"day": 2, "qty": 204}], "idempotency_key": "create"}}]},
+    {"tool_calls": [{"name": "submit_po", "args": {"po_id": "$ref:create_po_draft.po_id", "idempotency_key": "submit"}}]},
+    {"tool_calls": [{"name": "finish_execution", "args": {"summary": "partial acknowledged; 204 from CEDA approved and submitted"}}]},
+    {"text": "The 250 units Lala confirmed are not enough: demand over 5 days is 450 plus 180 of safety stock against 180 available, leaving a requirement of 200 and a stockout on day 4. The partial was acknowledged and 204 units were ordered from the alternate supplier CEDA (+5.66% price), which needed and received approval."}
+  ]
+}
