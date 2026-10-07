@@ -1,0 +1,43 @@
+{
+  "id": "s3_promo_uplift",
+  "scenario": "S3",
+  "title": "Uplift explained by a running promotion: temporary top-up only",
+  "description": "Agua Ciel sales jumped 50% four days ago. The promotions calendar shows a 2x1 running until day 3, and the forecast does not include it. The uplift is real but temporary, so the agent plans for promo demand until day 3 only, not a permanent shift.",
+  "as_of": "2026-10-07T07:00:00",
+  "seed": {
+    "inventory": [{"node": "CDMX-02", "sku": "AGUA-CIEL-1L", "on_hand": 140, "reserved": 0, "updated_hours_ago": 1}],
+    "forecasts": [{"node": "CDMX-02", "sku": "AGUA-CIEL-1L", "flat": 40, "days": 14, "generated_hours_ago": 6}],
+    "sales": [{"node": "CDMX-02", "sku": "AGUA-CIEL-1L",
+               "daily": [38, 42, 40, 41, 39, 40, 43, 37, 40, 42, 39, 41, 40, 38, 42, 40, 39, 41, 40, 40, 38, 40, 41, 39, 60, 61, 59, 60]}],
+    "promotions": [{"id": "PROMO-CIEL-2X1", "node": "CDMX-02", "sku": "AGUA-CIEL-1L", "start_day": -4, "end_day": 3,
+                    "uplift_pct": 50, "description": "2x1 Agua Ciel 1L - semana de calor"}],
+    "purchase_orders": [{"id": "PO-3003", "node": "CDMX-02", "supplier": "SUP-FEMSA-MX", "status": "CONFIRMED", "created_days_ago": 2,
+      "lines": [{"sku": "AGUA-CIEL-1L", "qty": 200, "qty_confirmed": 200, "eta_day": 1}],
+      "events": [{"type": "CONFIRMED", "hours_ago": 40, "payload": {"qty_confirmed": 200}}]}],
+    "budgets": [{"category": "beverages", "currency": "MXN", "limit": 60000, "committed": 20000, "spent": 15000}],
+    "storage": [{"node": "CDMX-02", "zone": "ambient", "capacity": 5000, "used": 2500}]
+  },
+  "trigger": {"type": "demand_alert", "node": "CDMX-02", "sku": "AGUA-CIEL-1L",
+              "message": "Sales of the last 4 days are 50% above forecast."},
+  "supplier_behaviour": {"SUP-FEMSA-MX": [{"type": "CONFIRMED"}]},
+  "expected": {
+    "outcome": "MODIFY", "qty_min": 96, "qty_max": 96, "final_status": "COMPLETED", "option_kind": "PURCHASE",
+    "final_pos": [{"supplier": "SUP-FEMSA-MX", "sku": "AGUA-CIEL-1L", "qty_min": 96, "qty_max": 96, "status": "CONFIRMED"}],
+    "required_tools": ["get_sales_history", "get_promotions", "detect_demand_shift", "get_forecast", "get_open_pos",
+                       "calculate_net_requirement"],
+    "computed": {
+      "baseline_daily": 40.0, "recent_daily": 51.43, "elevated_days": 4, "classification": "PROMO",
+      "horizon": 5, "promo_days_in_horizon": 4, "demand": 280, "safety_stock": 112, "available": 140, "inbound": 200,
+      "net": 52, "order_qty": 96, "pre_arrival_level": 220, "projection_with_order": [80, 220, 256, 196, 156]
+    }
+  },
+  "rationale": [
+    "baseline 40.0/day; days -4..-1 sold 60, 61, 59, 60 (> 50 threshold) and all four fall inside PROMO-CIEL-2X1 (days -4..3) -> PROMO, not a structural shift",
+    "promo-adjusted demand: days 0..3 at 40 x 1.5 = 60, day 4 back to 40 -> 4x60 + 40 = 280 over horizon 5; average 56",
+    "safety stock = 2 x 56 = 112; available 140; inbound PO-3003 200 on day 1",
+    "net = 280 + 112 - 140 - 200 = 52 -> max(52, MOQ 96) = 96 (multiple of 12)",
+    "PO-3003 arrives day 1, sooner than the 2-day lead time -> too late to change; a new PO arriving day 2 is needed",
+    "projection with 96 on day 2: d0 80, d1 80+200-60 = 220, d2 220+96-60 = 256, d3 196, d4 156 >= safety 112",
+    "value 96 x 9.50 = 912 MXN -> auto; after day 3 the basis returns to 40/day (no permanent change)"
+  ]
+}

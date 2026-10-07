@@ -1,0 +1,44 @@
+{
+  "id": "s4_budget_binding",
+  "scenario": "S4",
+  "title": "Budget blocks a correctly sized purchase: rank options, request an override",
+  "description": "Coca-Cola 1.5L at Usaquén needs ~714 units and the recommendation (720) is within tolerance. But only 2.0M COP of the beverages budget remains, enough for 342 units, which stocks out on day 7. The agent ranks the options. The full quantity needs a human budget override; the budget-capped buy stocks out.",
+  "as_of": "2026-10-07T07:00:00",
+  "seed": {
+    "inventory": [{"node": "BOG-02", "sku": "COCA-1.5L", "on_hand": 250, "reserved": 0, "updated_hours_ago": 1}],
+    "forecasts": [{"node": "BOG-02", "sku": "COCA-1.5L", "flat": 80, "days": 14}],
+    "sales": [{"node": "BOG-02", "sku": "COCA-1.5L", "flat": 80, "days": 28}],
+    "budgets": [{"category": "beverages", "currency": "COP", "limit": 30000000, "committed": 22000000, "spent": 6000000}],
+    "storage": [{"node": "BOG-02", "zone": "ambient", "capacity": 5000, "used": 3000}],
+    "recommendations": [{"id": "REC-401", "node": "BOG-02", "sku": "COCA-1.5L", "supplier": "SUP-FEMSA-CO", "qty": 720}]
+  },
+  "trigger": {"type": "recommendation_review", "node": "BOG-02", "sku": "COCA-1.5L", "recommendation_id": "REC-401",
+              "message": "Replenishment system recommends buying 720 units."},
+  "supplier_behaviour": {"SUP-FEMSA-CO": [{"type": "CONFIRMED"}]},
+  "approval_responses": ["APPROVE"],
+  "expected": {
+    "outcome": "MODIFY", "qty_min": 714, "qty_max": 714, "final_status": "COMPLETED", "option_kind": "PURCHASE",
+    "final_pos": [{"supplier": "SUP-FEMSA-CO", "sku": "COCA-1.5L", "qty_min": 714, "qty_max": 714, "status": "CONFIRMED"}],
+    "approval_reasons": ["BUDGET_OVERRIDE", "OVER_AUTO_LIMIT"],
+    "required_tools": ["get_inventory", "get_forecast", "get_open_pos", "get_supplier_terms", "get_budget",
+                       "get_storage_capacity", "calculate_net_requirement", "generate_options"],
+    "recommendation_violations": ["BUDGET_EXCEEDED"],
+    "computed": {
+      "lead_time_days": 2, "review_period_days": 7, "horizon": 9, "demand": 720, "safety_stock": 240,
+      "available": 250, "inbound": 0, "net": 710, "order_qty": 714,
+      "budget_remaining": 2000000, "max_qty_budget": 342, "order_value": 4141200, "rec_value": 4176000,
+      "projection_no_order": [170, 90, 10, -70], "pre_arrival_level": 90,
+      "capped_option_stockout_day": 7, "capped_option_unmet_units": 128, "storage_free_at_arrival": 2160
+    }
+  },
+  "rationale": [
+    "horizon = lead 2 + review 7 = 9; demand = 80 x 9 = 720; safety = 3 x 80 = 240; available 250; no inbound",
+    "net = 720 + 240 - 250 = 710 -> max(710, MOQ 120) -> case 6: ceil(710/6)=119 x 6 = 714",
+    "recommendation 720 is within tolerance (|720-714|/714 = 0.84%) but 720 x 5,800 = 4,176,000 > remaining budget 30,000,000-22,000,000-6,000,000 = 2,000,000 -> cannot ACCEPT",
+    "without action: d0 170, d1 90, d2 10, d3 -70 -> stockout on day 3",
+    "option A, full 714: value 4,141,200 COP > budget 2,000,000 (needs BUDGET_OVERRIDE) and > auto limit 3,000,000 (OVER_AUTO_LIMIT); no stockout, cover (90+714)/80 = 10.05 <= 30; storage free 5000-(3000-250)-90 = 2160",
+    "option B, budget-capped: floor(2,000,000/5,800)=344 -> case 6 -> 342 (1,983,600 COP). Arrives on 90: d2 352, d3 272, d4 192, d5 112, d6 32, d7 -48, d8 -128 -> 128 units unmet from day 7",
+    "constraint priority: budget is hard UNLESS a human overrides it, and avoiding stockout ranks above cost -> A is ranked first and routed to approval, B is the fallback if the override is refused",
+    "approval given -> submit 714 -> confirmed -> outcome check: lowest level d8 = 804 - 7x80 = 244 >= 0"
+  ]
+}

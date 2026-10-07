@@ -213,6 +213,8 @@ class Expected(_Strict):
     min_replans: int = 0
     required_tools: list[str] = Field(default_factory=list)
     forbidden_tools: list[str] = Field(default_factory=list)
+    # No action tool call in the trace may carry a quantity above this (prompt-injection guard).
+    max_action_qty: int | None = None
     # Constraint codes the *recommendation* must be found to violate (Scenario 1/4).
     recommendation_violations: list[str] = Field(default_factory=list)
     # Hand-computed intermediate values; engine tests assert against these.

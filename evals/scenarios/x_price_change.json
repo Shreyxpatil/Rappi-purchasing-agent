@@ -1,0 +1,37 @@
+{
+  "id": "x_price_change",
+  "scenario": "X",
+  "title": "Supplier confirms with an 8% price increase: re-gate for approval",
+  "description": "The correct recommendation (288 Coca-Cola 1.5L) is accepted and submitted. FEMSA confirms the quantity but at +8%. That exceeds the 5% price-variance policy, so the agent cannot silently accept it. It re-checks budget and routes the change to a human.",
+  "as_of": "2026-10-07T07:00:00",
+  "seed": {
+    "inventory": [{"node": "BOG-01", "sku": "COCA-1.5L", "on_hand": 200, "reserved": 10, "updated_hours_ago": 1}],
+    "forecasts": [{"node": "BOG-01", "sku": "COCA-1.5L", "flat": 40, "days": 14}],
+    "sales": [{"node": "BOG-01", "sku": "COCA-1.5L", "flat": 40, "days": 28}],
+    "budgets": [{"category": "beverages", "currency": "COP", "limit": 30000000, "committed": 18000000, "spent": 4000000}],
+    "storage": [{"node": "BOG-01", "zone": "ambient", "capacity": 6000, "used": 3500}],
+    "recommendations": [{"id": "REC-902", "node": "BOG-01", "sku": "COCA-1.5L", "supplier": "SUP-FEMSA-CO", "qty": 288}]
+  },
+  "trigger": {"type": "recommendation_review", "node": "BOG-01", "sku": "COCA-1.5L", "recommendation_id": "REC-902",
+              "message": "Replenishment system recommends buying 288 units."},
+  "supplier_behaviour": {"SUP-FEMSA-CO": [{"type": "PRICE_CHANGE", "pct": 8, "message": "Ajuste de lista de precios vigente desde hoy."}]},
+  "approval_responses": ["APPROVE"],
+  "expected": {
+    "outcome": "ACCEPT", "qty_min": 288, "qty_max": 288, "final_status": "COMPLETED", "option_kind": "PURCHASE",
+    "final_pos": [{"supplier": "SUP-FEMSA-CO", "sku": "COCA-1.5L", "qty_min": 288, "qty_max": 288, "status": "CONFIRMED"}],
+    "approval_reasons": ["PRICE_VARIANCE"],
+    "min_replans": 1,
+    "required_tools": ["calculate_net_requirement", "generate_options", "submit_po"],
+    "computed": {
+      "order_qty": 288, "old_unit_cost": 5800, "new_unit_cost": 6264, "price_variance_pct": 8.0,
+      "new_value": 1804032, "budget_remaining": 8000000
+    }
+  },
+  "rationale": [
+    "same position as s1_accept_correct: own requirement 294, recommendation 288 within tolerance -> ACCEPT, submit 288 at 5,800",
+    "supplier answers PRICE_CHANGE +8%: 5,800 x 1.08 = 6,264 COP",
+    "8% > 5% price-variance policy -> the changed PO must be re-gated: human approval (PRICE_VARIANCE)",
+    "budget re-check: 288 x 6,264 = 1,804,032 <= remaining 8,000,000 and < auto limit 3,000,000 -> the only blocker is the variance",
+    "approved -> PO confirmed at the new price; quantities unchanged, outcome check unchanged (lowest level 118 >= 0)"
+  ]
+}

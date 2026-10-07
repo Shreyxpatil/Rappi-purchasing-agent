@@ -1,0 +1,44 @@
+{
+  "id": "x_replans_exhausted",
+  "scenario": "X",
+  "title": "Every supplier rejects: stop after 3 replans and escalate",
+  "description": "Alquería rejects, then each approved alternate rejects too. The agent must not loop forever. After the third replan fails it escalates to a human with the full history.",
+  "as_of": "2026-10-07T07:00:00",
+  "seed": {
+    "inventory": [{"node": "BOG-01", "sku": "LECHE-ALQ-1L", "on_hand": 180, "reserved": 20, "updated_hours_ago": 2}],
+    "forecasts": [{"node": "BOG-01", "sku": "LECHE-ALQ-1L", "flat": 60, "days": 14}],
+    "sales": [{"node": "BOG-01", "sku": "LECHE-ALQ-1L", "flat": 60, "days": 28}],
+    "purchase_orders": [{"id": "PO-1001", "node": "BOG-01", "supplier": "SUP-ALQ", "status": "CONFIRMED", "created_days_ago": 1,
+      "lines": [{"sku": "LECHE-ALQ-1L", "qty": 120, "qty_confirmed": 120, "eta_day": 2}],
+      "events": [{"type": "CONFIRMED", "hours_ago": 20, "payload": {"qty_confirmed": 120}}]}],
+    "budgets": [{"category": "dairy", "currency": "COP", "limit": 20000000, "committed": 12000000, "spent": 5000000}],
+    "storage": [{"node": "BOG-01", "zone": "chilled", "capacity": 2000, "used": 1400}],
+    "recommendations": [{"id": "REC-903", "node": "BOG-01", "sku": "LECHE-ALQ-1L", "supplier": "SUP-ALQ", "qty": 240}]
+  },
+  "trigger": {"type": "recommendation_review", "node": "BOG-01", "sku": "LECHE-ALQ-1L", "recommendation_id": "REC-903",
+              "message": "Replenishment system recommends buying 240 units."},
+  "supplier_behaviour": {"SUP-ALQ": [{"type": "REJECTED", "message": "Sin capacidad esta semana."}],
+                         "SUP-ANDINA": [{"type": "REJECTED", "message": "Sin inventario."}],
+                         "SUP-DORADO": [{"type": "REJECTED", "message": "Ruta suspendida."}],
+                         "SUP-MAKRO": [{"type": "REJECTED", "message": "Producto agotado en bodega."}]},
+  "approval_responses": ["APPROVE", "APPROVE", "APPROVE"],
+  "expected": {
+    "outcome": "MODIFY", "qty_min": 144, "qty_max": 240, "final_status": "ESCALATED", "option_kind": "ESCALATE",
+    "final_pos": [{"supplier": "SUP-ALQ", "sku": "LECHE-ALQ-1L", "qty_min": 240, "qty_max": 240, "status": "REJECTED"},
+                  {"supplier": "SUP-ANDINA", "sku": "LECHE-ALQ-1L", "qty_min": 144, "qty_max": 144, "status": "REJECTED"},
+                  {"supplier": "SUP-DORADO", "sku": "LECHE-ALQ-1L", "qty_min": 144, "qty_max": 144, "status": "REJECTED"},
+                  {"supplier": "SUP-MAKRO", "sku": "LECHE-ALQ-1L", "qty_min": 144, "qty_max": 144, "status": "REJECTED"}],
+    "approval_reasons": ["ALTERNATE_SUPPLIER"],
+    "escalation": true,
+    "min_replans": 3,
+    "required_tools": ["generate_options", "submit_po", "escalate"],
+    "computed": {"max_replans": 3, "attempts": ["SUP-ALQ", "SUP-ANDINA", "SUP-DORADO", "SUP-MAKRO"]}
+  },
+  "rationale": [
+    "attempt 1: SUP-ALQ 240 (accepted recommendation) -> REJECTED -> replan 1",
+    "attempt 2: SUP-ANDINA 144 (cheapest alternate, approved) -> REJECTED -> replan 2",
+    "attempt 3: SUP-DORADO 144 (next cheapest, approved) -> REJECTED -> replan 3",
+    "attempt 4: SUP-MAKRO 144 (approved) -> REJECTED -> replan budget of 3 exhausted -> ESCALATE with every attempt, reason code and the projected day-4 stockout",
+    "no PO is left open; the human gets the full trace instead of a fifth blind retry"
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "id": "x_supplier_rejects",
+  "scenario": "X",
+  "title": "Supplier rejects the PO: replan to an alternate supplier",
+  "description": "The recommendation (240 units of milk for Chapinero) is right and gets submitted, but Alquería rejects the PO (line maintenance). The outcome differs from what the agent expected, so it must replan: exclude Alquería, choose the best alternate and get approval for the new supplier.",
+  "as_of": "2026-10-07T07:00:00",
+  "seed": {
+    "inventory": [{"node": "BOG-01", "sku": "LECHE-ALQ-1L", "on_hand": 180, "reserved": 20, "updated_hours_ago": 2}],
+    "forecasts": [{"node": "BOG-01", "sku": "LECHE-ALQ-1L", "flat": 60, "days": 14}],
+    "sales": [{"node": "BOG-01", "sku": "LECHE-ALQ-1L", "flat": 60, "days": 28}],
+    "purchase_orders": [{"id": "PO-1001", "node": "BOG-01", "supplier": "SUP-ALQ", "status": "CONFIRMED", "created_days_ago": 1,
+      "lines": [{"sku": "LECHE-ALQ-1L", "qty": 120, "qty_confirmed": 120, "eta_day": 2}],
+      "events": [{"type": "CONFIRMED", "hours_ago": 20, "payload": {"qty_confirmed": 120}}]}],
+    "budgets": [{"category": "dairy", "currency": "COP", "limit": 20000000, "committed": 12000000, "spent": 5000000}],
+    "storage": [{"node": "BOG-01", "zone": "chilled", "capacity": 2000, "used": 1400}],
+    "recommendations": [{"id": "REC-901", "node": "BOG-01", "sku": "LECHE-ALQ-1L", "supplier": "SUP-ALQ", "qty": 240}]
+  },
+  "trigger": {"type": "recommendation_review", "node": "BOG-01", "sku": "LECHE-ALQ-1L", "recommendation_id": "REC-901",
+              "message": "Replenishment system recommends buying 240 units."},
+  "supplier_behaviour": {"SUP-ALQ": [{"type": "REJECTED", "message": "Mantenimiento de la línea de envasado: no podemos despachar esta semana."}],
+                         "SUP-ANDINA": [{"type": "CONFIRMED"}]},
+  "approval_responses": ["APPROVE"],
+  "expected": {
+    "outcome": "MODIFY", "qty_min": 144, "qty_max": 144, "final_status": "COMPLETED", "option_kind": "PURCHASE",
+    "final_pos": [{"supplier": "SUP-ALQ", "sku": "LECHE-ALQ-1L", "qty_min": 240, "qty_max": 240, "status": "REJECTED"},
+                  {"supplier": "SUP-ANDINA", "sku": "LECHE-ALQ-1L", "qty_min": 144, "qty_max": 144, "status": "CONFIRMED"}],
+    "approval_reasons": ["ALTERNATE_SUPPLIER"],
+    "min_replans": 1,
+    "required_tools": ["calculate_net_requirement", "generate_options", "submit_po", "list_alternate_suppliers"],
+    "computed": {
+      "horizon": 5, "demand": 300, "safety_stock": 120, "available": 160, "inbound": 120, "net": 140,
+      "first_order_qty": 240, "replan_order_qty": 144, "replan_supplier": "SUP-ANDINA", "price_variance_pct": 3.57,
+      "alq_reliability_after": 0.76, "projection_with_order": [100, 40, 100, 184, 124]
+    }
+  },
+  "rationale": [
+    "same position as s1_overstock: net = 300 + 120 - 160 - 120 = 140 -> SUP-ALQ order max(140, MOQ 240) = 240 = recommendation -> ACCEPT and submit (1,008,000 COP, auto)",
+    "supplier responds REJECTED -> layer-3 validation fails -> replan with SUP-ALQ excluded",
+    "alternates (all lead 3, MOQ 120, case 12): ANDINA 4,350, DORADO 4,380, MAKRO 4,400 COP -> qty = max(140, 120) = 140 -> ceil to 12 = 144",
+    "cheapest is SUP-ANDINA; variance vs SUP-ALQ = (4,350-4,200)/4,200 = 3.57% <= 5%, but it is not the primary supplier -> approval (ALTERNATE_SUPPLIER)",
+    "approved -> submit -> confirmed; levels d3 100+144-60 = 184, d4 124 -> no stockout, outcome check passes",
+    "fill outcome updates SUP-ALQ reliability: EWMA 0.8 x 0.95 + 0.2 x 0 = 0.76"
+  ]
+}

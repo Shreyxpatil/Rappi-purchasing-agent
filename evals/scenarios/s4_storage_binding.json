@@ -1,0 +1,45 @@
+{
+  "id": "s4_storage_binding",
+  "scenario": "S4",
+  "title": "Chilled storage blocks a single delivery: split it across two days",
+  "description": "A holiday weekend doubles milk demand at Chapinero. The agent needs 444 units, but the chilled room is full and only 360 fit on the arrival day. One PO with two scheduled deliveries (360 on day 3, 84 on day 4) meets MOQ, storage and demand.",
+  "as_of": "2026-10-07T07:00:00",
+  "seed": {
+    "inventory": [{"node": "BOG-01", "sku": "LECHE-ALQ-1L", "on_hand": 400, "reserved": 0, "updated_hours_ago": 1}],
+    "forecasts": [{"node": "BOG-01", "sku": "LECHE-ALQ-1L", "flat": 120, "days": 14}],
+    "sales": [{"node": "BOG-01", "sku": "LECHE-ALQ-1L", "flat": 60, "days": 28}],
+    "budgets": [{"category": "dairy", "currency": "COP", "limit": 20000000, "committed": 12000000, "spent": 5000000}],
+    "storage": [{"node": "BOG-01", "zone": "chilled", "capacity": 2000, "used": 2000}],
+    "recommendations": [{"id": "REC-402", "node": "BOG-01", "sku": "LECHE-ALQ-1L", "supplier": "SUP-ALQ", "qty": 450}]
+  },
+  "trigger": {"type": "recommendation_review", "node": "BOG-01", "sku": "LECHE-ALQ-1L", "recommendation_id": "REC-402",
+              "message": "Replenishment system recommends buying 450 units (holiday weekend forecast)."},
+  "supplier_behaviour": {"SUP-ALQ": [{"type": "CONFIRMED"}]},
+  "expected": {
+    "outcome": "MODIFY", "qty_min": 444, "qty_max": 444, "final_status": "COMPLETED", "option_kind": "PURCHASE",
+    "final_pos": [{"supplier": "SUP-ALQ", "sku": "LECHE-ALQ-1L", "qty_min": 444, "qty_max": 444, "status": "CONFIRMED"}],
+    "required_tools": ["get_inventory", "get_forecast", "get_open_pos", "get_supplier_terms", "get_budget",
+                       "get_storage_capacity", "calculate_net_requirement", "generate_options"],
+    "recommendation_violations": ["CASE_PACK_MISMATCH", "STORAGE_EXCEEDED"],
+    "computed": {
+      "lead_time_days": 3, "review_period_days": 2, "horizon": 5, "demand": 600, "safety_stock": 240,
+      "available": 400, "inbound": 0, "net": 440, "order_qty": 444,
+      "projection_no_order": [280, 160, 40, -80], "pre_arrival_level": 40,
+      "storage_free_at_arrival": 360, "max_qty_storage": 360,
+      "split_deliveries": [{"day": 3, "qty": 360}, {"day": 4, "qty": 84}], "storage_free_day4": 120,
+      "projection_with_split": [280, 160, 40, 280, 244], "capped_single_shortfall_vs_safety": 80,
+      "order_value": 1864800
+    }
+  },
+  "rationale": [
+    "horizon = lead 3 + review 2 = 5; demand = 120 x 5 = 600 (holiday forecast); safety = 2 x 120 = 240; available 400; no inbound",
+    "net = 600 + 240 - 400 = 440 -> max(440, MOQ 240) -> case 12: ceil(440/12)=37 x 12 = 444",
+    "without action: d0 280, d1 160, d2 40, d3 -80 -> stockout on day 3",
+    "storage: chilled room full (used 2000 = capacity 2000; other SKUs 2000 - 400 = 1600). On day 3, before arrival, milk = 40 -> free = 2000 - 1600 - 40 = 360",
+    "recommendation 450: not a multiple of 12 (CASE_PACK_MISMATCH) and 450 > 360 (STORAGE_EXCEEDED)",
+    "option A, one PO with split delivery: 360 on day 3 (fits exactly), then end of day 3 = 40+360-120 = 280 -> day 4 free = 2000-1600-280 = 120 >= 84 -> second delivery 84 on day 4; PO total 444 >= MOQ 240",
+    "option A levels: d3 280, d4 280+84-120 = 244 >= safety 240",
+    "option B, single delivery capped at 360: d3 280, d4 160 -> no stockout but 80 below safety stock -> ranked second",
+    "value 444 x 4,200 = 1,864,800 COP < auto limit and < remaining budget 3,000,000 -> auto"
+  ]
+}

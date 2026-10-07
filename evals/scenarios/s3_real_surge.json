@@ -1,0 +1,46 @@
+{
+  "id": "s3_real_surge",
+  "scenario": "S3",
+  "title": "Sustained demand surge: top up the open PO",
+  "description": "Agua Ciel 1L sales at Polanco ran ~60% above forecast on every one of the last 7 days, spread across many small orders, with no promotion running. The forecast has not caught up. The evidence supports a real shift, so the agent increases the open PO, which can still be changed.",
+  "as_of": "2026-10-07T07:00:00",
+  "seed": {
+    "inventory": [{"node": "CDMX-02", "sku": "AGUA-CIEL-1L", "on_hand": 150, "reserved": 0, "updated_hours_ago": 1}],
+    "forecasts": [{"node": "CDMX-02", "sku": "AGUA-CIEL-1L", "flat": 40, "days": 14, "generated_hours_ago": 6}],
+    "sales": [{"node": "CDMX-02", "sku": "AGUA-CIEL-1L",
+               "daily": [38, 42, 40, 41, 39, 40, 43, 37, 40, 42, 39, 41, 40, 38, 42, 40, 39, 41, 40, 40, 38, 58, 62, 66, 63, 65, 67, 67]}],
+    "purchase_orders": [{"id": "PO-3001", "node": "CDMX-02", "supplier": "SUP-FEMSA-MX", "status": "CONFIRMED", "created_days_ago": 1,
+      "lines": [{"sku": "AGUA-CIEL-1L", "qty": 200, "qty_confirmed": 200, "eta_day": 2}],
+      "events": [{"type": "CONFIRMED", "hours_ago": 20, "payload": {"qty_confirmed": 200}}]}],
+    "budgets": [{"category": "beverages", "currency": "MXN", "limit": 60000, "committed": 20000, "spent": 15000}],
+    "storage": [{"node": "CDMX-02", "zone": "ambient", "capacity": 5000, "used": 2500}]
+  },
+  "trigger": {"type": "demand_alert", "node": "CDMX-02", "sku": "AGUA-CIEL-1L",
+              "message": "Sales of the last 7 days are 60% above forecast."},
+  "supplier_behaviour": {"SUP-FEMSA-MX": [{"type": "CONFIRMED"}]},
+  "expected": {
+    "outcome": "MODIFY", "qty_min": 108, "qty_max": 108, "final_status": "COMPLETED", "option_kind": "PURCHASE",
+    "final_pos": [{"id": "PO-3001", "supplier": "SUP-FEMSA-MX", "sku": "AGUA-CIEL-1L", "qty_min": 308, "qty_max": 308, "status": "CONFIRMED"}],
+    "required_tools": ["get_sales_history", "get_forecast", "get_promotions", "detect_demand_shift", "get_inventory",
+                       "get_open_pos", "calculate_net_requirement"],
+    "computed": {
+      "baseline_daily": 40.0, "recent_daily": 64.0, "elevated_threshold": 50.0, "elevated_days": 7,
+      "classification": "SUSTAINED_SHIFT", "adjusted_daily": 64.0,
+      "horizon": 5, "available": 150, "inbound": 200,
+      "net_on_forecast": -70, "demand": 320, "safety_stock": 128, "net": 98, "order_qty": 108,
+      "projection_no_order_adjusted": [86, 22, 158, 94, 30], "cover_after_order": 5.16
+    }
+  },
+  "rationale": [
+    "baseline = mean of days -28..-8 (21 days) = 840/21 = 40.0; recent = mean of days -7..-1 = 448/7 = 64.0 (+60%)",
+    "a day is elevated if sales > baseline x 1.25 = 50: all 7 recent days are elevated (>= 5 of 7 -> sustained)",
+    "largest single order is 4 units on every day and no promotion is active -> not a bulk order, not a promo",
+    "classification SUSTAINED_SHIFT -> adopt the recent run-rate 64/day as the demand basis",
+    "on the stale forecast (40/day): net = 200 + 80 - 150 - 200 = -70 -> the old plan looks fine, which is the trap",
+    "on 64/day: horizon 5 (lead 2 + review 3), demand 320, safety stock 2 x 64 = 128, net = 320 + 128 - 150 - 200 = 98",
+    "order = max(98, MOQ 96) = 98 -> case 12: ceil(98/12)=9 x 12 = 108",
+    "PO-3001 (same supplier, arrives day 2 = lead time, not yet shipped) can absorb it: increase 200 -> 308 instead of a second delivery",
+    "projection at 64/day without change: d0 86, d1 22, d2 158, d3 94, d4 30 (below safety 128; day 5 would be -34)",
+    "with 308 on day 2: cover (22+308)/64 = 5.16 <= 30; value 108 x 9.50 = 1,026 MXN -> auto"
+  ]
+}
