@@ -220,8 +220,10 @@ class PurchasingAgent:
         if missing:
             return _error("MISSING_EVIDENCE", "gather this evidence before deciding", {"missing": missing})
         if not args.investigate:
+            known = [o["id"] for o in (r.ctx.state.options or {}).get("options", [])]
             if not args.option_id:
-                return _error("INVALID_ARGUMENTS", "option_id is required unless investigate=true")
+                return _error("INVALID_ARGUMENTS", "option_id is required unless investigate=true: pass the id "
+                              "of the option you chose", {"valid_option_ids": known})
             issues, sens = assess_data(r.ctx, trigger["node"], trigger["sku"])
             if data_blocks_decision(issues, sens):
                 return _error("DATA_BLOCKS_DECISION", "the data cannot support acting; investigate instead",
@@ -322,7 +324,7 @@ class PurchasingAgent:
             self._escalate(r, "TURN_LIMIT", f"no progress after {MAX_TURNS[state]} turns in {state}")
             r.rec.transition(State.REPORT, "turn limit")
             return None
-        schemas = self._schemas(state) if tools else []
+        schemas = self._schemas(r) if tools else []
         start = time.perf_counter()
         try:
             resp = self.llm.complete(r.messages, schemas)
@@ -337,12 +339,18 @@ class PurchasingAgent:
         r.messages.append(resp.as_message())
         return resp
 
-    def _schemas(self, state: State) -> list[dict[str, Any]]:
+    def _schemas(self, r: _Run) -> list[dict[str, Any]]:
         out = []
-        for name in sorted(ALLOWED_TOOLS.get(state, set())):
+        for name in sorted(ALLOWED_TOOLS.get(r.state, set())):
             if name in CONTROL_TOOLS:
                 model, description = CONTROL_TOOLS[name]
-                out.append({"name": name, "description": description, "parameters": schema_for(model)})
+                params = schema_for(model)
+                if name == "propose_decision" and r.ctx.state.options:
+                    # Once options exist, the model can only name one of them: an enum, not a free string.
+                    params["properties"]["option_id"] = {
+                        "type": "string", "enum": [o["id"] for o in r.ctx.state.options["options"]],
+                        "description": "id from generate_options; omit only when investigate=true"}
+                out.append({"name": name, "description": description, "parameters": params})
             else:
                 out.append(tool_schema(REGISTRY[name]))
         return out

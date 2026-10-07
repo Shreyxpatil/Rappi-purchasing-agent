@@ -136,3 +136,39 @@ def test_control_tool_results_are_recorded_under_the_state_that_ran_them(run_cas
     by_name = {st.name: st.state for st in run.steps if st.kind == "tool"}
     assert by_name["propose_decision"] == "INVESTIGATE"
     assert by_name["finish_execution"] == "EXECUTE"
+
+
+def test_option_id_schema_becomes_an_enum_of_generated_options(run_case) -> None:
+    from app.agent.loop import PurchasingAgent
+    from app.llm.base import LLMClient
+    from app.llm.scripted import ScriptedClient
+    from app.seed import seed_workspace
+
+    seen = []
+
+    class Spy(LLMClient):
+        name = "spy"
+
+        def __init__(self, inner):
+            self.inner = inner
+
+        def complete(self, messages, tools):
+            seen.append({t["name"]: t for t in tools})
+            return self.inner.complete(messages, tools)
+
+    _, _, s, fx = run_case("s1_overstock")  # reuse its database, then rerun the case through the spy
+    seed_workspace(s, fx)
+    s.commit()
+    spy_agent = PurchasingAgent(s, Spy(ScriptedClient.for_case("s1_overstock")))
+    spy_agent.run(spy_agent.start(fx.id, fx.trigger.model_dump()))
+    before, after = seen[0]["propose_decision"], seen[2]["propose_decision"]  # turn 3 follows generate_options
+    assert "enum" not in before["parameters"]["properties"]["option_id"]
+    assert after["parameters"]["properties"]["option_id"]["enum"][:2] == ["BUY:SUP-ALQ:240", "BUY:SUP-ANDINA:144"]
+
+
+def test_missing_option_id_error_lists_the_valid_ids(run_case) -> None:
+    turns = script_turns("s1_overstock")[:2] + [
+        {"tool_calls": [{"name": "propose_decision", "args": {"reasons": ["240 is right"]}}]}]
+    _, run, _, _ = run_case("s1_overstock", turns)
+    err = next(st for st in run.steps if st.name == "propose_decision").output["error"]
+    assert err["code"] == "INVALID_ARGUMENTS" and err["details"]["valid_option_ids"][0] == "BUY:SUP-ALQ:240"
