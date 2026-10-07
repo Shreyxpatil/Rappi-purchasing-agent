@@ -47,3 +47,13 @@ class NetRequirement(Frozen):
     net: float
     order_qty: int
     rounding: list[str]  # human-readable steps, e.g. "raised 140 to MOQ 240"
+
+
+class Projection(Frozen):
+    """Day-by-day stock level. Receipts land at the start of their day; that day's demand is then subtracted."""
+
+    start_levels: list[float]  # after the day's receipts, before its demand
+    end_levels: list[float]
+    stockout_day: int | None  # first day whose end level is below zero
+    unmet_units: float  # demand that could not be served within the window
+    min_level: float

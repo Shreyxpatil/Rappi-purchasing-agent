@@ -82,7 +82,8 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
   This is exactly the question Scenario 2 asks.
 - **Projection convention:** level starts at `available`; receipts land at the start of their arrival day and that
   day's demand is subtracted after. Stockout = end-of-day level < 0. The level "before arrival" of a new order is
-  the end-of-day level of the day before it lands.
+  the end-of-day level of the day before it lands, plus any *other* receipts landing that same day. Levels are allowed
+  to go negative, and `−min(level)` is reported as unmet units: lost sales in a quick-commerce context.
 
 ## D9. One decision vocabulary across scenarios
 
