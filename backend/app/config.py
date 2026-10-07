@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     llm_provider: Literal["scripted", "gemini", "openai_compat"] = "scripted"
     gemini_api_key: str = ""
     gemini_model: str = ""
+    gemini_thinking_level: str = "low"  # minimal | low | medium | high; low saves free-tier quota and latency
     openai_compat_base_url: str = ""
     openai_compat_api_key: str = ""
     openai_compat_model: str = ""

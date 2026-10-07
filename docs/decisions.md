@@ -338,3 +338,23 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
   checklist handle them.
 - **Why:** Free-tier models occasionally drop a field or invent a tool. One correction usually fixes it. A model
   that cannot produce a valid call twice running is not going to make a safe purchase on the third try.
+
+## D24. Gemini client: default temperature, low thinking, signatures preserved, paced and retried
+
+- **Model:** `gemini-3.8-flash` (the latest stable Flash on Google's model list, available on the free tier,
+  checked on 2026-10-07). Always read from `GEMINI_MODEL`, never hardcoded; the client refuses to start without it.
+- **Temperature:** left at the provider default. Google's Gemini 3 guidance strongly recommends keeping
+  temperature at 1.0 and warns that lowering it can cause looping or degraded reasoning. Determinism comes from
+  elsewhere: the scripted client for tests and evals, and the engine and gate, which make the numbers and the
+  allowed actions identical whatever the model says. The trade-off is that real-model runs can vary run to run,
+  which is why real-LLM evals report pass rates rather than a single result.
+- **Thinking level:** `GEMINI_THINKING_LEVEL`, default `low`. The hard reasoning is done by the engine, so the model's
+  job is choosing among evaluated options. `low` cuts latency and free-tier quota; it is one env var to raise.
+- **Thought signatures:** Gemini 3 requires the model's parts, including `thought_signature`, to be sent back on the
+  next turn of a function-calling conversation. The client stores the raw parts in `Message.provider_data`
+  (bytes as base64), so they survive a pause for approval. A live two-turn check confirmed the round trip.
+- **Rate limits:** a client-side pacer spaces requests at `60 / LLM_MAX_RPM` seconds. 429, RESOURCE_EXHAUSTED and
+  5xx are retried with exponential backoff and full jitter, honouring the server's `retryDelay`. Other 4xx errors fail
+  fast as `LLMError`.
+- **Data use:** the Gemini free tier may use prompts to improve Google's products. That is acceptable here only
+  because every SKU, supplier and number is mock data; production would use a paid tier with data-use opt-out.
