@@ -358,3 +358,16 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
   fast as `LLMError`.
 - **Data use:** the Gemini free tier may use prompts to improve Google's products. That is acceptable here only
   because every SKU, supplier and number is mock data; production would use a paid tier with data-use opt-out.
+
+## D25. One OpenAI-compatible client as the backup provider (Groq preset)
+
+- **Decision:** `OpenAICompatibleClient` speaks plain chat-completions over `httpx`, configured only by
+  `OPENAI_COMPAT_BASE_URL`, `OPENAI_COMPAT_API_KEY` and `OPENAI_COMPAT_MODEL`. The preset is Groq
+  (`https://api.groq.com/openai/v1`, `llama-3.3-70b-versatile`: a production model that supports tool use and
+  parallel tool calls, per Groq's docs on 2026-10-08). It shares the pacer and backoff with the Gemini client.
+  Arguments the model emits as invalid JSON become an `_unparseable_arguments` field, so the agent's schema
+  validation answers with a precise error once (D23) instead of the client crashing.
+- **Alternatives:** The `openai` SDK; LiteLLM.
+- **Why:** One small client covers Groq, OpenRouter, local vLLM and Ollama alike, with no extra dependency or
+  abstraction to explain.
+- **Status:** covered by offline tests against a mock transport. A live check needs a Groq key and is optional.
