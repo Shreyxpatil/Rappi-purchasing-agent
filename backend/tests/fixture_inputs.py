@@ -69,3 +69,31 @@ def net_input(fx: ScenarioFixture, *, node: str | None = None, sku: str | None =
         moq=t["moq"],
         case_pack=t["case_pack"],
     )
+
+
+NODE_CURRENCY = {n["id"]: n["currency"] for n in CATALOG["nodes"]}
+
+
+def plan_context(fx: ScenarioFixture, *, supplier: str | None = None, basis: list[float] | None = None,
+                 extra_receipts: list[Receipt] | None = None):
+    from app.engine.replenishment import calculate_net_requirement
+    from app.engine.types import PlanContext, StorageInfo
+
+    node, sku = fx.trigger.node, fx.trigger.sku
+    p = product(sku)
+    req = calculate_net_requirement(net_input(fx, supplier=supplier, basis=basis))
+    inv = inventory(fx, node, sku)
+    st = next((s for s in fx.seed.storage if (s.node, s.zone) == (node, p["temp_zone"])), None)
+    bud = next((b for b in fx.seed.budgets
+                if (b.category, b.currency) == (p["category"], NODE_CURRENCY[node])), None)
+    return PlanContext(
+        available=inv.on_hand - inv.reserved,
+        forecast=basis if basis is not None else forecast(fx, node, sku),
+        horizon=req.horizon,
+        avg_daily=req.avg_daily,
+        safety_stock=req.safety_stock,
+        existing_receipts=receipts(fx, node, sku) + (extra_receipts or []),
+        storage=StorageInfo(capacity_units=st.capacity, used_units=st.used, sku_on_hand=inv.on_hand) if st else None,
+        budget_remaining=(bud.limit - bud.committed - bud.spent) if bud else None,
+        max_days_cover=p["max_days_cover"],
+    )
