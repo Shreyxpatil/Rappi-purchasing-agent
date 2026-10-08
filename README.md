@@ -64,9 +64,25 @@ Both providers below were run live end to end on `s1_overstock`. Both reached th
 
 ```bash
 cp .env.example .env && chmod 600 .env       # then fill in the keys; .env is gitignored
+make check-providers                         # is each configured model available and callable?
 make demo PROVIDER=gemini
 make demo PROVIDER=openai_compat CASE=s2_partial_needs_alternate
 ```
+
+**Provider preflight.** A key with credits is not enough: the configured model must be available to that key.
+`make check-providers` lists each provider's models, checks the configured one is there, and makes one 5-token
+call with it. It prints one row per provider whose key is set, and the closest available models when the configured
+one is missing:
+
+```text
+provider      | model            | listed | callable | status
+--------------+------------------+--------+----------+-----------
+gemini        | gemini-3.8-flash | yes    | yes      | OK
+```
+
+Status is one of `OK`, `INVALID_KEY`, `MODEL_NOT_AVAILABLE`, `NO_CREDITS`, `QUOTA_EXHAUSTED` or `NETWORK`.
+A real run from the UI, the CLI or `make eval-real` runs the same check first and refuses to start unless it is
+`OK` (the API answers `400 PREFLIGHT_<status>`). An OK result is reused for 10 minutes.
 
 - **Gemini key:** free from [Google AI Studio](https://aistudio.google.com/apikey) (sign in, "Create API key").
 - **Groq key:** from [console.groq.com](https://console.groq.com/keys). Preset: `OPENAI_COMPAT_BASE_URL=https://api.groq.com/openai/v1`,
@@ -106,6 +122,7 @@ In scripted mode use the `x_*` scenarios: a replayed trajectory only follows the
 | `OPENAI_COMPAT_BASE_URL` | none (`https://api.groq.com/openai/v1`) | Any OpenAI-compatible endpoint |
 | `OPENAI_COMPAT_API_KEY` | — | Key for that endpoint |
 | `OPENAI_COMPAT_MODEL` | none (`qwen/qwen3.8-27b`) | Model id (must support tool calling) |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | none (`claude-opus-5-5`) | Only checked by `make check-providers`; there is no Anthropic agent client yet |
 | `LLM_MAX_RPM` | `8` | Client-side pacing for real providers; 429s are retried with jittered backoff |
 | `LLM_MAX_CALL_SECONDS` | `300` | Most time one model call may spend waiting and retrying. A daily quota, or a provider retry delay longer than this, fails fast |
 | `RUN_MAX_SECONDS` | `1200` | Most active time one run may use (time waiting for an approval excluded); then it ends `RUN_TIMEOUT` |
@@ -208,7 +225,7 @@ stateDiagram-v2
    persisted with its input, output and latency, and shown by `GET /api/runs/{id}`. A fixed scenario clock, seeded
    data, run-scoped idempotency keys and the scripted provider make runs repeatable.
 
-Every significant choice, with alternatives considered, is in [`docs/decisions.md`](docs/decisions.md) (D1–D29).
+Every significant choice, with alternatives considered, is in [`docs/decisions.md`](docs/decisions.md) (D1–D30).
 
 ## Agent Behaviour — design answers
 
