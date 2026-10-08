@@ -1,0 +1,97 @@
+{
+ "case": "s2_partial_enough",
+ "notes": "Good agent: checks whether 250 is enough before sourcing elsewhere; it is.",
+ "turns": [
+  {
+   "tool_calls": [
+    {
+     "name": "get_open_pos",
+     "args": {
+      "node": "CDMX-01",
+      "sku": "LECHE-LALA-1L"
+     }
+    },
+    {
+     "name": "get_inventory",
+     "args": {
+      "node": "CDMX-01",
+      "sku": "LECHE-LALA-1L"
+     }
+    },
+    {
+     "name": "get_forecast",
+     "args": {
+      "node": "CDMX-01",
+      "sku": "LECHE-LALA-1L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "calculate_net_requirement",
+     "args": {
+      "node": "CDMX-01",
+      "sku": "LECHE-LALA-1L"
+     }
+    },
+    {
+     "name": "project_inventory",
+     "args": {
+      "node": "CDMX-01",
+      "sku": "LECHE-LALA-1L"
+     }
+    },
+    {
+     "name": "generate_options",
+     "args": {
+      "node": "CDMX-01",
+      "sku": "LECHE-LALA-1L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "propose_decision",
+     "args": {
+      "option_id": "ACCEPT_PARTIAL:PO-2001",
+      "reasons": [
+       "with the 250 confirmed the net requirement is -50",
+       "stock never drops below safety stock"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "update_po_line",
+     "args": {
+      "po_id": "PO-2001",
+      "sku": "LECHE-LALA-1L",
+      "new_qty": 250,
+      "reason": "supplier confirmed 250 and that covers the horizon",
+      "idempotency_key": "ack"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "finish_execution",
+     "args": {
+      "summary": "partial accepted, remainder closed"
+     }
+    }
+   ]
+  },
+  {
+   "text": "Accepted the 250 units Lala confirmed and closed the rest of the line. Over the 5-day horizon demand is 250 (50/day) plus 100 of safety stock; with 150 available and the 250 confirmed inbound, the own requirement is -50, so no extra sourcing is needed."
+  }
+ ]
+}

@@ -1,0 +1,114 @@
+{
+ "case": "s2_alt_moq_exceeds_gap",
+ "notes": "Good agent: prefers a transfer over an alternate supplier whose MOQ overstocks.",
+ "turns": [
+  {
+   "tool_calls": [
+    {
+     "name": "get_open_pos",
+     "args": {
+      "node": "CDMX-01",
+      "sku": "LECHE-LALA-1L"
+     }
+    },
+    {
+     "name": "get_inventory",
+     "args": {
+      "node": "CDMX-01",
+      "sku": "LECHE-LALA-1L"
+     }
+    },
+    {
+     "name": "get_forecast",
+     "args": {
+      "node": "CDMX-01",
+      "sku": "LECHE-LALA-1L"
+     }
+    },
+    {
+     "name": "list_alternate_suppliers",
+     "args": {
+      "sku": "LECHE-LALA-1L"
+     }
+    },
+    {
+     "name": "get_inventory_other_nodes",
+     "args": {
+      "node": "CDMX-01",
+      "sku": "LECHE-LALA-1L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "calculate_net_requirement",
+     "args": {
+      "node": "CDMX-01",
+      "sku": "LECHE-LALA-1L"
+     }
+    },
+    {
+     "name": "generate_options",
+     "args": {
+      "node": "CDMX-01",
+      "sku": "LECHE-LALA-1L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "propose_decision",
+     "args": {
+      "option_id": "TRANSFER:CDMX-02:80",
+      "reasons": [
+       "gap is 80 units",
+       "CEDA's MOQ of 480 would overstock",
+       "Polanco can spare 120"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "update_po_line",
+     "args": {
+      "po_id": "PO-2003",
+      "sku": "LECHE-LALA-1L",
+      "new_qty": 250,
+      "reason": "supplier confirmed 250; gap covered by transfer",
+      "idempotency_key": "ack"
+     }
+    },
+    {
+     "name": "create_transfer",
+     "args": {
+      "from_node": "CDMX-02",
+      "to_node": "CDMX-01",
+      "sku": "LECHE-LALA-1L",
+      "qty": 80,
+      "idempotency_key": "transfer"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "finish_execution",
+     "args": {
+      "summary": "partial acknowledged, 80 transferred"
+     }
+    }
+   ]
+  },
+  {
+   "text": "Lala confirmed 250, leaving a requirement of 80 units over the 5-day horizon (demand 350 plus 140 of safety stock against 160 available and 250 inbound). The alternate supplier only sells full pallets, which would overstock, so 80 units are transferred from Polanco (CDMX-02) and the partial was acknowledged."
+  }
+ ]
+}

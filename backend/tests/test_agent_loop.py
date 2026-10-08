@@ -256,3 +256,25 @@ def test_tool_steps_carry_measured_latency(run_case, monkeypatch) -> None:
                                                                                        "finish_execution")]
     assert registry_tools and all(st.latency_ms == 42 for st in registry_tools)
     assert all(st.latency_ms is not None and st.latency_ms >= 0 for st in run.steps)
+
+
+def test_partial_that_is_enough_is_accepted_without_sourcing(run_case) -> None:
+    _, run, s, fx = run_case("s2_partial_enough")
+    assert (run.status, run.decision["outcome"], run.decision["quantity"]) == ("COMPLETED", "ACCEPT", 250)
+    po = s.get(PurchaseOrder, "PO-2001")
+    assert (po.status, po.lines[0].qty_ordered, po.lines[0].qty_confirmed) == ("CONFIRMED", 250, 250)
+    assert s.scalars(select(PurchaseOrder).filter_by(run_id=run.id)).first() is None
+    verify = next(st for st in run.steps if st.kind == "verification")
+    assert verify.ok and verify.output["actual_end_levels"] == fx.expected.computed["projection_no_order"]
+
+
+def test_partial_gap_covered_by_transfer_when_alternate_moq_overstocks(run_case) -> None:
+    from app.models import StockTransfer
+
+    _, run, s, fx = run_case("s2_alt_moq_exceeds_gap")
+    assert (run.status, run.decision["outcome"], run.decision["option_kind"]) == ("COMPLETED", "MODIFY", "TRANSFER")
+    t = s.scalars(select(StockTransfer).filter_by(run_id=run.id)).one()
+    assert (t.from_node_id, t.to_node_id, t.qty, t.status) == ("CDMX-02", "CDMX-01", 80, "PLANNED")
+    assert s.get(PurchaseOrder, "PO-2003").lines[0].qty_ordered == 250
+    verify = next(st for st in run.steps if st.kind == "verification")
+    assert verify.output["actual_end_levels"] == fx.expected.computed["projection_with_transfer"]
