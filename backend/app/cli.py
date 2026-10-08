@@ -18,7 +18,7 @@ from app.models import Approval, PurchaseOrder, StockTransfer
 from app.seed import seed_workspace
 
 
-def run_case(case_id: str, provider: str = "scripted", database_url: str = "sqlite://"):
+def run_case(case_id: str, provider: str = "scripted", database_url: str = "sqlite://", script_variant: str = ""):
     """Seed, run and answer approvals; returns (session, run). Shared with the eval runner (P6)."""
     fx = load_fixture(case_id)
     engine = make_engine(database_url)
@@ -26,7 +26,7 @@ def run_case(case_id: str, provider: str = "scripted", database_url: str = "sqli
     session = make_session_factory(engine)()
     seed_workspace(session, fx)
     session.commit()
-    agent = PurchasingAgent(session, make_client(provider, case_id=case_id))
+    agent = PurchasingAgent(session, make_client(provider, case_id=case_id, script_variant=script_variant))
     run = agent.run(agent.start(fx.id, fx.trigger.model_dump()))
     answers = list(fx.approval_responses)
     while run.status == "AWAITING_APPROVAL":

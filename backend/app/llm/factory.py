@@ -5,14 +5,14 @@ from app.llm.base import LLMClient, LLMError
 from app.llm.scripted import ScriptedClient
 
 
-def make_client(provider: str | None = None, *, case_id: str | None = None,
+def make_client(provider: str | None = None, *, case_id: str | None = None, script_variant: str = "",
                 settings: Settings | None = None) -> LLMClient:
     s = settings or get_settings()
     provider = provider or s.llm_provider
     if provider == "scripted":
         if not case_id:
             raise LLMError("CONFIG", "the scripted provider needs a case id")
-        return ScriptedClient.for_case(case_id)
+        return ScriptedClient.for_case(case_id, script_variant)
     if provider == "gemini":
         from app.llm.gemini import GeminiClient
 

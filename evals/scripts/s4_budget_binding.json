@@ -1,22 +1,127 @@
 {
-  "case": "s4_budget_binding",
-  "notes": "Good agent: picks the full 714 that needs a budget override; the gate routes it to approval; approved.",
-  "turns": [
-    {"tool_calls": [
-      {"name": "get_inventory", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}},
-      {"name": "get_forecast", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}},
-      {"name": "get_open_pos", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}},
-      {"name": "get_budget", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}},
-      {"name": "get_storage_capacity", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}}]},
-    {"tool_calls": [
-      {"name": "calculate_net_requirement", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}},
-      {"name": "generate_options", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}}]},
-    {"tool_calls": [{"name": "propose_decision", "args": {"option_id": "BUY:SUP-FEMSA-CO:714",
-      "reasons": ["the budget-capped 342 stocks out on day 7", "a human must decide whether to exceed the budget"]}}]},
-    {"tool_calls": [{"name": "create_po_draft", "args": {"node": "BOG-02", "sku": "COCA-1.5L", "supplier_id": "SUP-FEMSA-CO",
-      "deliveries": [{"day": 2, "qty": 714}], "idempotency_key": "create"}}]},
-    {"tool_calls": [{"name": "submit_po", "args": {"po_id": "$ref:create_po_draft.po_id", "idempotency_key": "submit"}}]},
-    {"tool_calls": [{"name": "finish_execution", "args": {"summary": "PO for 714 approved and submitted"}}]},
-    {"text": "Modified the recommendation of 720 to 714 units. Demand over the 9-day horizon is 720 plus 240 of safety stock against 250 available, so the own requirement is 710, rounded to 714. That costs 4,141,200 COP and needs a budget override, which a human approved; the in-budget alternative would have run out of stock."}
-  ]
+ "case": "s4_budget_binding",
+ "notes": "Good agent: picks the full 714 that needs a budget override; the gate routes it to approval; approved.",
+ "turns": [
+  {
+   "tool_calls": [
+    {
+     "name": "get_inventory",
+     "args": {
+      "node": "BOG-02",
+      "sku": "COCA-1.5L"
+     }
+    },
+    {
+     "name": "get_forecast",
+     "args": {
+      "node": "BOG-02",
+      "sku": "COCA-1.5L"
+     }
+    },
+    {
+     "name": "get_open_pos",
+     "args": {
+      "node": "BOG-02",
+      "sku": "COCA-1.5L"
+     }
+    },
+    {
+     "name": "get_budget",
+     "args": {
+      "node": "BOG-02",
+      "sku": "COCA-1.5L"
+     }
+    },
+    {
+     "name": "get_storage_capacity",
+     "args": {
+      "node": "BOG-02",
+      "sku": "COCA-1.5L"
+     }
+    },
+    {
+     "name": "get_supplier_terms",
+     "args": {
+      "supplier_id": "SUP-FEMSA-CO",
+      "sku": "COCA-1.5L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "calculate_net_requirement",
+     "args": {
+      "node": "BOG-02",
+      "sku": "COCA-1.5L"
+     }
+    },
+    {
+     "name": "generate_options",
+     "args": {
+      "node": "BOG-02",
+      "sku": "COCA-1.5L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "propose_decision",
+     "args": {
+      "option_id": "BUY:SUP-FEMSA-CO:714",
+      "reasons": [
+       "the budget-capped 342 stocks out on day 7",
+       "a human must decide whether to exceed the budget"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "create_po_draft",
+     "args": {
+      "node": "BOG-02",
+      "sku": "COCA-1.5L",
+      "supplier_id": "SUP-FEMSA-CO",
+      "deliveries": [
+       {
+        "day": 2,
+        "qty": 714
+       }
+      ],
+      "idempotency_key": "create"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "submit_po",
+     "args": {
+      "po_id": "$ref:create_po_draft.po_id",
+      "idempotency_key": "submit"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "finish_execution",
+     "args": {
+      "summary": "PO for 714 approved and submitted"
+     }
+    }
+   ]
+  },
+  {
+   "text": "Modified the recommendation of 720 to 714 units. Demand over the 9-day horizon is 720 plus 240 of safety stock against 250 available, so the own requirement is 710, rounded to 714. That costs 4,141,200 COP and needs a budget override, which a human approved; the in-budget alternative would have run out of stock."
+  }
+ ]
 }
