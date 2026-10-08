@@ -225,7 +225,7 @@ stateDiagram-v2
    persisted with its input, output and latency, and shown by `GET /api/runs/{id}`. A fixed scenario clock, seeded
    data, run-scoped idempotency keys and the scripted provider make runs repeatable.
 
-Every significant choice, with alternatives considered, is in [`docs/decisions.md`](docs/decisions.md) (D1–D30).
+Every significant choice, with alternatives considered, is in [`docs/decisions.md`](docs/decisions.md) (D1–D31).
 
 ## Agent Behaviour — design answers
 
@@ -387,7 +387,18 @@ provider in [`evals/report.md`](evals/report.md).
 
 ## Demo
 
-> Video walkthrough: _link to be added_
+![Supplier rejects, the agent replans, a buyer approves the alternate supplier](docs/demo/replan.gif)
+
+| Video | Provider | Scenarios | Real duration | Speed-up |
+|---|---|---|---|---|
+| [demo-scripted.mp4](docs/demo/demo-scripted.mp4) (2:25) | scripted (offline replay) | `s1_overstock`, `x_supplier_rejects`, `s4_budget_override_rejected`, Evaluations tab | 2:25 | none |
+
+External video link: _to be added_
+
+The videos are recorded from the real UI and API by [`scripts/record_demo.py`](scripts/record_demo.py) (Playwright,
+captions drawn on screen): `make demo-video`. A real-model video is recorded only after `make check-providers`
+passes, and is kept only if the run completes with the expected result. Only its waiting stretches are sped up,
+and the step latencies on screen are the real ones.
 
 **Quick path (no key, about 1 s per run):** `docker compose up --build`, or `make run` after `cd frontend && npm install
 && npm run build`. Open **http://localhost:8000** and keep the provider on **scripted**. Every scenario below replays a
