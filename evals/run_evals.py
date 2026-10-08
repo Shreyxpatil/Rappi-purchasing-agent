@@ -23,7 +23,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 from app.cli import run_case  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.fixtures import list_fixtures, load_fixture  # noqa: E402
+from app.llm.base import LLMError  # noqa: E402
 from app.llm.factory import make_client  # noqa: E402
+from app.llm.preflight import require_ready  # noqa: E402
 from app.logs import configure_logging  # noqa: E402
 from evals.graders import grade_run  # noqa: E402
 from evals.judge import judge_narrative  # noqa: E402
@@ -92,6 +94,16 @@ def store(provider: str, rows: list[dict[str, Any]], results_dir: Path = RESULTS
     return path
 
 
+def preflight(providers: list[str]) -> None:
+    """Refuse the whole eval unless every real provider it needs (judge included) passes its preflight:
+    a run on an unavailable model would only record infrastructure failures."""
+    for provider in dict.fromkeys(providers):
+        try:
+            require_ready(provider)
+        except LLMError as e:
+            raise SystemExit(f"refusing to run evals: {e} (see make check-providers)")
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--provider", nargs="+", default=["scripted"], choices=["scripted", "gemini", "openai_compat"])
@@ -101,6 +113,7 @@ def main() -> None:
     p.add_argument("--verbose", action="store_true", help="log every model call (default: warnings only)")
     args = p.parse_args()
     configure_logging(logging.INFO if args.verbose else logging.WARNING)
+    preflight([*args.provider, *([args.judge] if args.judge else [])])
 
     for provider in args.provider:
         cases = args.case or ([f.id for f in list_fixtures()] if provider == "scripted" else REAL_SUBSET)

@@ -14,7 +14,9 @@ from sqlalchemy import select
 from app.agent.loop import PurchasingAgent
 from app.db import create_schema, make_engine, make_session_factory
 from app.fixtures import load_fixture
+from app.llm.base import LLMError
 from app.llm.factory import make_client
+from app.llm.preflight import require_ready
 from app.logs import configure_logging
 from app.models import Approval, PurchaseOrder, StockTransfer
 from app.seed import seed_workspace
@@ -45,6 +47,10 @@ def main() -> None:
     parser.add_argument("--verbose", action="store_true", help="log every model call (default: warnings only)")
     args = parser.parse_args()
     configure_logging(logging.INFO if args.verbose else logging.WARNING)
+    try:
+        require_ready(args.provider)  # a real run only starts if the provider and its model are available
+    except LLMError as e:
+        raise SystemExit(f"refusing to run: {e} (see make check-providers)")
     start = time.perf_counter()
     session, run = run_case(args.case, args.provider)
     d = run.decision or {}

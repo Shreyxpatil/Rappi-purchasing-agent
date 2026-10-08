@@ -9,6 +9,7 @@ from app.db import create_schema, make_engine, make_session_factory
 def isolated_settings(monkeypatch):
     """Tests never read the developer's .env: no real keys, no real provider, no quota spent."""
     monkeypatch.setattr("app.llm.factory.get_settings", lambda: Settings(_env_file=None))
+    monkeypatch.setattr("app.llm.preflight.get_settings", lambda: Settings(_env_file=None))
 
 
 @pytest.fixture

@@ -457,3 +457,23 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
 - **Why:** The brief cares about the *quality of the evaluation approach*. Separating "is the system correct"
   (scripted, deterministic, must be 100%) from "how good is the model's judgement" (real runs, pass rates) keeps
   both honest. During development the graders already caught two scripts that skipped required evidence.
+
+## D30. Provider preflight before every real run
+
+- **Decision:** `make check-providers` (`app/llm/preflight.py`) checks, for each provider whose key is set, that the
+  configured model is in the provider's model list and answers one 5-token request. It reports `OK`,
+  `INVALID_KEY`, `MODEL_NOT_AVAILABLE`, `NO_CREDITS`, `QUOTA_EXHAUSTED` or `NETWORK`, with the closest listed
+  models when the configured one is missing. Real runs (API, CLI, `make eval-real`, judge included) call the same
+  check first and refuse to start unless it is OK. An OK result is cached for 10 minutes so launching runs does not
+  spend quota on checks.
+- **Rules:** an alias counts as listed when the list holds its dated snapshot (`claude-haiku-4-5` →
+  `claude-haiku-4-5-20251001`). A model that is not listed is `MODEL_NOT_AVAILABLE` even if the call happens to
+  work, because the list is the provider's statement of what this key may use. A failed listing (bad key, no
+  network) stops the check before the call.
+- **Why:** Every class of failure here was hit during development: a Groq model listed in the docs but not
+  available to the key, an Anthropic key without credits, an exhausted Gemini daily quota and a DNS outage. Each
+  one only surfaced minutes into a run or an eval. The preflight costs one tiny request and turns those into an
+  immediate, named refusal.
+- **Alternative considered:** checking only the key (a models-list call). Rejected: it passes for a key without
+  credits and for a model the key cannot use, which are exactly the failures seen.
+

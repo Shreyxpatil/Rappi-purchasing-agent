@@ -184,3 +184,21 @@ def test_a_second_answer_to_the_same_approval_does_not_fail_the_run(client) -> N
         again = runner.answer_approval(s, approval_id, False, "cm", "double click")
         assert again.status == "COMPLETED"
     assert client.get(f"/api/runs/{run_id}").json()["status"] == "COMPLETED"
+
+
+def _real_settings():
+    from app.config import Settings
+    return Settings(_env_file=None, gemini_api_key="AIza-test-key-0000000000", gemini_model="gemini-3.8-flash")
+
+
+def test_api_refuses_a_real_run_when_preflight_fails(client, monkeypatch) -> None:
+    from app.llm import preflight as pf
+    from app.llm.preflight import Check
+    monkeypatch.setattr("app.llm.factory.get_settings", lambda: _real_settings())
+    monkeypatch.setattr(pf, "_ok_until", {})
+    monkeypatch.setitem(pf.CHECKS, "gemini",
+                        lambda s: Check("gemini", s.gemini_model, True, False, "NO_CREDITS", "billing"))
+    monkeypatch.setattr(pf, "get_settings", lambda: _real_settings())
+    r = client.post("/api/runs", json={"scenario_id": "s1_overstock", "provider": "gemini"})
+    assert r.status_code == 400 and r.json()["detail"]["code"] == "PREFLIGHT_NO_CREDITS"
+    assert client.get("/api/runs").json() == []  # nothing was started or reset
