@@ -87,6 +87,8 @@ def write_report(results_dir: Path = RESULTS_DIR, report: Path = REPORT) -> Path
         lines.append("None.")
     for r, res in failures:
         why = r.get("error") or "; ".join(f"**{k}**: {v}" for k, v in r["failures"].items())
+        if r.get("run_error"):
+            why = f"run failed with `{r['run_error']}`. " + why
         lines.append(f"- `{r['case']}` on {LABEL.get(res['provider'])} (run {r['run']}): {why}")
         note = notes.get(f"{r['case']}|{res['provider']}|{r['run']}")
         lines.append(f"  - *Root cause:* {note}" if note else "  - *Root cause:* not yet analysed.")

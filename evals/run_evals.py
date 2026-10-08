@@ -55,6 +55,9 @@ def evaluate(provider: str, case: str, run_index: int, judge_provider: str | Non
                    llm_calls=len(llm), tokens_in=sum(st.tokens_in or 0 for st in llm),
                    tokens_out=sum(st.tokens_out or 0 for st in llm),
                    narrative_source=(run.context or {}).get("narrative_source"), narrative=run.narrative)
+        errors = [st for st in run.steps if st.kind == "error"]
+        if errors:  # why the run itself failed (provider outage, rate limit, script exhausted...)
+            row["run_error"] = f"{errors[-1].name}: {(errors[-1].output or {}).get('message', '')}"[:400]
         if judge_provider and run.narrative and d:
             row["judge"] = judge_narrative(make_client(judge_provider), run.narrative, d)
     except Exception as e:  # a provider outage is a failed run, not a crashed eval
