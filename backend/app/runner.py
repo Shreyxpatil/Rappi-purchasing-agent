@@ -11,10 +11,12 @@ from app.models import AgentRun, Approval, Workspace
 from app.seed import seed_workspace
 
 
-def prepare_run(session: Session, case_id: str, provider: str) -> AgentRun:
+def prepare_run(session: Session, case_id: str, provider: str,
+                supplier_behaviour: dict[str, list[dict]] | None = None) -> AgentRun:
     """Load the scenario into the workspace and create a run (not started yet).
 
     The LLM client is built first, so a misconfigured provider fails before anything is reset.
+    `supplier_behaviour` replaces the scenario's scripted supplier answers (demo: inject a failure).
     """
     fx = load_fixture(case_id)
     make_client(provider, case_id=case_id)  # validates provider config (raises LLMError)
@@ -23,6 +25,9 @@ def prepare_run(session: Session, case_id: str, provider: str) -> AgentRun:
         for a in session.scalars(select(Approval).filter_by(run_id=run.id, status="PENDING")):
             a.status = "SUPERSEDED"
     seed_workspace(session, fx)
+    if supplier_behaviour is not None:
+        ws = session.get(Workspace, 1)
+        ws.config = {**ws.config, "supplier_behaviour": supplier_behaviour}
     session.commit()
     agent = PurchasingAgent(session, make_client(provider, case_id=case_id))
     return agent.start(fx.id, fx.trigger.model_dump())

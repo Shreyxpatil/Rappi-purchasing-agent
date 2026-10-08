@@ -56,3 +56,20 @@ def test_bad_requests(client) -> None:
     assert r.status_code == 400 and r.json()["detail"]["code"] == "CONFIG"  # no key/model configured in tests
     assert client.post("/api/runs", json={"scenario_id": "s3_promo_uplift"}).status_code == 400  # no script yet
     assert client.get("/api/runs/999").status_code == 404
+
+
+def test_supplier_failure_can_be_injected_for_a_run(client) -> None:
+    from app.models import Workspace
+
+    body = {"scenario_id": "x_supplier_rejects",
+            "supplier_behaviour": {"SUP-ALQ": [{"type": "REJECTED", "message": "injected"}],
+                                   "SUP-ANDINA": [{"type": "CONFIRMED"}]}}
+    run_id = client.post("/api/runs", json=body).json()["run_id"]
+    with client.app.state.session_factory() as s:
+        cfg = s.get(Workspace, 1).config
+    assert cfg["supplier_behaviour"]["SUP-ALQ"] == [{"type": "REJECTED", "message": "injected"}]
+    run = client.get(f"/api/runs/{run_id}").json()
+    supplier_steps = [st for st in run["steps"] if st["kind"] == "supplier"]
+    assert supplier_steps[0]["output"]["message"] == "injected"
+    bad = client.post("/api/runs", json={**body, "supplier_behaviour": {"SUP-ALQ": [{"type": "EXPLODED"}]}})
+    assert bad.status_code == 422

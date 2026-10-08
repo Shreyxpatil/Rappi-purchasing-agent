@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import runner
-from app.fixtures import list_fixtures
+from app.fixtures import SupplierResponse, list_fixtures
 from app.llm.base import LLMError
 from app.llm.scripted import SCRIPTS_DIR
 from app.models import AgentRun, Approval, PurchaseOrder, StockTransfer, Workspace
@@ -45,13 +45,18 @@ def workspace(s: Session = Depends(get_session)) -> dict[str, Any]:
 class StartRun(BaseModel):
     scenario_id: str
     provider: Literal["scripted", "gemini", "openai_compat"] = "scripted"
+    # Optional: replace the scenario's supplier answers, e.g. {"SUP-ALQ": [{"type": "REJECTED"}]}.
+    # Meant for real providers; a scripted trajectory only follows the failures its scenario scripts.
+    supplier_behaviour: dict[str, list[SupplierResponse]] | None = None
 
 
 @router.post("/runs", status_code=202)
 def start_run(body: StartRun, background: BackgroundTasks, request: Request,
               s: Session = Depends(get_session)) -> dict[str, Any]:
     try:
-        run = runner.prepare_run(s, body.scenario_id, body.provider)
+        behaviour = None if body.supplier_behaviour is None else {
+            k: [r.model_dump(exclude_none=True) for r in v] for k, v in body.supplier_behaviour.items()}
+        run = runner.prepare_run(s, body.scenario_id, body.provider, behaviour)
     except FileNotFoundError:
         raise HTTPException(404, f"unknown scenario {body.scenario_id}")
     except LLMError as e:
