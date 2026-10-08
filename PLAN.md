@@ -154,9 +154,12 @@ An LLM judge scores only narrative quality, against `rubric.md`.
 **Runs:**
 
 - Scripted runs are free: 3 runs per case, all cases (a determinism check).
-- Real-LLM runs default to a representative subset, given free-tier quotas: s1_overstock, s2_partial_needs_alternate (recovery),
-  prompt_injection, and s4_budget_binding. Each runs once, sequentially and paced. `--case` selects any case (repeatable)
+- Real-LLM runs default to a representative subset, given free-tier quotas: s1_overstock, s2_partial_needs_alternate
+  (recovery), x_prompt_injection and s4_budget_binding. Defaults: **3 runs per case on Groq** and **1 run per case on
+  Gemini**, run sequentially and paced, with pass rates reported per provider. `--case` selects any case (repeatable)
   and `--runs` overrides the run count.
+- **Every one of the 17 fixtures gets a scripted trajectory** (P6 adds the ones still missing), so the scripted eval
+  covers the whole suite.
 
 **Report** (`evals/report.md`): a case × dimension table, pass rate per dimension per provider, and an explicit
 "ran on: scripted / gemini" column per case. It states plainly that scripted runs regression-test the system
