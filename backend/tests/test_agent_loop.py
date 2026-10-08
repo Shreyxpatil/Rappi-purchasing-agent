@@ -330,3 +330,27 @@ def test_retries_and_waits_appear_on_the_trace(run_case) -> None:
     assert wait.name == "waiting: rate limited, retrying in 7s" and wait.state == "INVESTIGATE"
     assert wait.seq < next(st.seq for st in run.steps if st.kind == "llm")  # recorded before the call returned
     assert run.status == "COMPLETED" and agent.llm.on_wait is None
+
+
+def test_a_replayed_submit_after_approval_does_not_pause_the_run_again(run_case) -> None:
+    turns = script_turns("s4_budget_binding")
+    retry = {"tool_calls": [{"name": "submit_po", "args": {"po_id": "$ref:create_po_draft.po_id",
+                                                           "idempotency_key": "submit"}}]}  # same key: replayed
+    agent, run, s, _ = run_case("s4_budget_binding", turns[:5] + [retry] + turns[5:])
+    approval = s.scalars(select(Approval).filter_by(run_id=run.id)).one()
+    agent.resolve_and_resume(run, approval.id, approve=True, decided_by="cm")
+    assert run.status == "COMPLETED"
+    replay = [st for st in run.steps if st.name == "submit_po"][-1]
+    assert replay.output["output"]["replayed"] is True
+
+
+def test_a_discretionary_approval_request_pauses_the_run(run_case) -> None:
+    turns = script_turns("s1_overstock")
+    ask = {"tool_calls": [{"name": "request_approval", "args": {"summary": "please double-check", "reasons": ["NEW_SKU"],
+                                                                "idempotency_key": "ask"}}]}
+    agent, run, s, _ = run_case("s1_overstock", turns[:5] + [ask] + turns[5:])
+    assert run.status == "AWAITING_APPROVAL"
+    approval = s.scalars(select(Approval).filter_by(run_id=run.id)).one()
+    assert approval.reasons == ["AGENT_REQUESTED", "NEW_SKU"]
+    agent.resolve_and_resume(run, approval.id, approve=True, decided_by="cm")
+    assert run.status == "COMPLETED"

@@ -28,7 +28,7 @@ from app.config import get_settings
 from app.engine.quality import data_blocks_decision
 from app.logs import RUN_ID
 from app.llm.base import LLMClient, LLMError, Message, ToolCall
-from app.models import AgentRun, AuditLog, POLine, PurchaseOrder, StockTransfer
+from app.models import AgentRun, Approval, AuditLog, POLine, PurchaseOrder, StockTransfer
 from app.policy import Policy, get_policy
 from app.tools import REGISTRY, ToolContext, call_tool
 from app.engine.projection import project_inventory
@@ -196,7 +196,7 @@ class PurchasingAgent:
             else:
                 payload = self._dispatch(r, call)
                 output = payload.get("output") or {}
-                if payload["ok"] and output.get("status") == "PENDING_APPROVAL":
+                if payload["ok"] and output.get("status") == "PENDING_APPROVAL" and self._approval_open(output):
                     r.run.status = RunStatus.AWAITING_APPROVAL
                     r.rec.step("approval", "REQUESTED", call.args, output)
                 elif not payload["ok"] and payload["error"]["code"] == "ESCALATION_REQUIRED":
@@ -367,6 +367,12 @@ class PurchasingAgent:
             return _error("EXECUTION_INCOMPLETE", "the decided option is not fully executed", {"missing": gaps})
         r.extra["next_state"] = State.VALIDATE
         return {"ok": True, "output": {"executed": True}}
+
+    def _approval_open(self, output: dict[str, Any]) -> bool:
+        """Pause only for an approval that is still pending. A retried call replays its first response
+        (idempotency), which still says PENDING_APPROVAL after the human has already answered."""
+        approval = self.session.get(Approval, output.get("approval_id"))
+        return approval is not None and approval.status == "PENDING"
 
     def _execution_gaps(self, r: _Run) -> list[str]:
         """What the decided option still needs, read back from the database (not from the model's claims)."""

@@ -404,7 +404,7 @@ def request_approval(ctx: ToolContext, args: RequestApprovalArgs) -> dict[str, A
     def run() -> dict[str, Any]:
         gate = GateResult(verdict="APPROVAL", reasons=["AGENT_REQUESTED", *args.reasons])
         approval = _request_approval(ctx, gate, {"tool": "review"}, args.summary)
-        return {"approval_id": approval.id, "status": "PENDING"}
+        return {"approval_id": approval.id, "status": "PENDING_APPROVAL"}  # pauses the run like any approval
 
     return _idempotent(ctx, "request_approval", args, run)
 
