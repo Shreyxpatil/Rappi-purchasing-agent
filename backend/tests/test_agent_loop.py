@@ -233,3 +233,14 @@ def test_injected_delay_that_causes_a_stockout_triggers_a_replan(run_case) -> No
     verify = next(st for st in r.steps if st.kind == "verification")
     assert not verify.ok and verify.output["failures"][0]["code"] == "OUTCOME_WORSE_THAN_PREDICTED"
     assert verify.output["stockout_day"] == 4 and "SUP-ALQ" in r.context["state"]["excluded_suppliers"]
+
+
+def test_supplier_outcomes_update_reliability(run_case) -> None:
+    from app.models import Supplier
+
+    agent, run, s, fx = run_case("x_supplier_rejects")
+    _approve_all(agent, run, s)
+    events = {st.input["supplier_id"]: st.output["reliability"] for st in run.steps if st.kind == "supplier"}
+    assert events["SUP-ALQ"] == {"before": 0.95, "after": fx.expected.computed["alq_reliability_after"]}
+    assert events["SUP-ANDINA"] == {"before": 0.86, "after": 0.888}  # 0.8 x 0.86 + 0.2 x 1.0
+    assert s.get(Supplier, "SUP-ALQ").reliability_score == 0.76

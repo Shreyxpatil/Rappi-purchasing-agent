@@ -205,8 +205,11 @@ class PurchasingAgent:
         for po in pos:
             start = time.perf_counter()
             ev = supplier.respond(self.session, r.ctx.clock, po)
+            old, new = supplier.update_reliability(self.session, r.ctx.clock, po.supplier_id, ev.fill_rate,
+                                                   self.policy.reliability_ewma_alpha)
             r.extra["attempt_pos"].append(po.id)
-            r.rec.step("supplier", ev.type, {"po_id": po.id, "supplier_id": po.supplier_id}, ev.model_dump(),
+            r.rec.step("supplier", ev.type, {"po_id": po.id, "supplier_id": po.supplier_id},
+                       {**ev.model_dump(), "reliability": {"before": old, "after": new}},
                        ok=ev.type in ("CONFIRMED", "DELAYED"), latency_ms=int((time.perf_counter() - start) * 1000))
         r.rec.transition(State.VERIFY_OUTCOME)
 

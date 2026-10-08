@@ -97,3 +97,16 @@ def _release(session: Session, clock: Clock, po: PurchaseOrder, value: float) ->
     if b is not None and value:
         b.committed = round(b.committed - value, 2)
         b.updated_at = clock.now()
+
+
+def update_reliability(session: Session, clock: Clock, supplier_id: str, fill_rate: float,
+                       alpha: float) -> tuple[float, float]:
+    """EWMA of fill rates: recent outcomes count, one bad week does not erase a good year.
+    Returns (old, new)."""
+    from app.models import Supplier
+
+    s = session.get(Supplier, supplier_id)
+    old = s.reliability_score
+    s.reliability_score = round((1 - alpha) * old + alpha * fill_rate, 4)
+    s.updated_at = clock.now()
+    return old, s.reliability_score

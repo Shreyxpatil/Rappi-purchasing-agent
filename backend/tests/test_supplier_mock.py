@@ -73,3 +73,13 @@ def test_responses_are_consumed_in_order_then_default_to_confirmed(tool_ctx) -> 
     assert next_response(ctx.session, "SUP-ANDINA")["type"] == "REJECTED"
     assert next_response(ctx.session, "SUP-ANDINA") == {"type": "CONFIRMED"}
     assert ctx.session.get(Workspace, 1).config["supplier_cursor"] == {"SUP-ANDINA": 2}
+
+
+def test_reliability_is_an_ewma_of_fill_rates(tool_ctx) -> None:
+    from app.models import Supplier
+    from app.supplier_mock.service import update_reliability
+
+    ctx = tool_ctx("x_supplier_rejects")
+    assert update_reliability(ctx.session, ctx.clock, "SUP-ALQ", 0.0, 0.2) == (0.95, 0.76)  # fixture: 0.76
+    assert update_reliability(ctx.session, ctx.clock, "SUP-ALQ", 1.0, 0.2)[1] == 0.808
+    assert ctx.session.get(Supplier, "SUP-ALQ").reliability_score == 0.808
