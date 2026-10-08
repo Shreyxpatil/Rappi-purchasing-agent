@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, type RunDetail, type Step } from '../api'
 import { DecisionCard, ProjectionChart } from '../components'
-import { Badge, Card, Json, statusTone } from '../ui'
+import { Badge, Card, Json, RunStatus } from '../ui'
 
 const KIND_LABEL: Record<string, string> = {
   llm: 'model', tool: 'tool', decision: 'decision', policy: 'policy gate', validation: 'post-action diff',
@@ -40,7 +40,7 @@ export default function RunView({ runId, onApprovals }: { runId: number; onAppro
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-lg font-semibold">Run #{run.id} · <code>{run.scenario_id}</code></h1>
-        <Badge tone={statusTone(run.status)}>{run.status}</Badge>
+        <RunStatus status={run.status} reason={run.reason} />
         <span className="text-sm text-slate-500">provider {run.provider} · state {run.state} · replans {run.replans}</span>
         {run.status === 'RUNNING' && <span className="animate-pulse text-sm text-sky-700">running…</span>}
       </div>

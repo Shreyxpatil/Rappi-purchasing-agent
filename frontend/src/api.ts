@@ -73,6 +73,7 @@ export interface RunSummary {
   scenario_id: string
   provider: string
   status: string
+  reason: string | null // why it ended FAILED / ESCALATED, e.g. LLM_QUOTA_EXHAUSTED
   state: string
   outcome: string | null
   quantity: number | null

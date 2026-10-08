@@ -113,8 +113,20 @@ def _projection(run: AgentRun) -> dict[str, Any] | None:
             "confirmed": verified[-1].output.get("actual_end_levels") if verified else None}
 
 
+def _run_reason(r: AgentRun) -> str | None:
+    """Why a run ended FAILED or ESCALATED: the code of its last error / escalation step."""
+    kind = {"FAILED": "error", "ESCALATED": "escalation"}.get(r.status)
+    if kind is None:
+        return None
+    step = next((st for st in reversed(r.steps) if st.kind == kind), None)
+    if step is not None:
+        return step.name
+    return ((r.context or {}).get("error") or "").split(":")[0] or None
+
+
 def _run_summary(r: AgentRun) -> dict[str, Any]:
-    return {"id": r.id, "scenario_id": r.scenario_id, "provider": r.provider, "status": r.status, "state": r.state,
+    return {"id": r.id, "scenario_id": r.scenario_id, "provider": r.provider, "status": r.status,
+            "reason": _run_reason(r), "state": r.state,
             "outcome": (r.decision or {}).get("outcome"), "quantity": (r.decision or {}).get("quantity"),
             "replans": r.replan_count, "started_at": r.started_at, "finished_at": r.finished_at}
 

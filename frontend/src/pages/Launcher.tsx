@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, type Provider, type RunSummary, type Scenario } from '../api'
-import { Badge, Card, statusTone } from '../ui'
+import { Card, RunStatus } from '../ui'
 
 const GROUPS: Record<string, string> = {
   S1: 'S1 · Recommendation review',
@@ -111,7 +111,7 @@ export default function Launcher({ onOpenRun }: { onOpenRun: (id: number) => voi
               <button onClick={() => onOpenRun(r.id)} className="w-full rounded p-2 text-left hover:bg-slate-50">
                 <div className="flex justify-between gap-2">
                   <span className="font-mono text-xs">#{r.id} {r.scenario_id}</span>
-                  <Badge tone={statusTone(r.status)}>{r.status}</Badge>
+                  <RunStatus status={r.status} reason={r.reason} />
                 </div>
                 <div className="text-xs text-slate-500">{r.provider} · {r.outcome ?? '…'} {r.quantity ?? ''}</div>
               </button>

@@ -137,3 +137,16 @@ def test_built_ui_is_served_at_root_without_shadowing_the_api(tmp_path, monkeypa
     with TestClient(main.create_app("sqlite://")) as c:
         assert "Purchasing Agent" in c.get("/").text
         assert c.get("/api/health").json() == {"status": "ok"}
+
+
+def test_failed_and_escalated_runs_name_their_reason(client, monkeypatch) -> None:
+    import app.agent.loop as loop
+
+    ok = client.post("/api/runs", json={"scenario_id": "s1_overstock"}).json()["run_id"]
+    escalated = client.post("/api/runs", json={"scenario_id": "s1_stale_inventory"}).json()["run_id"]
+    monkeypatch.setattr(loop.PurchasingAgent, "run", lambda self, run: (_ for _ in ()).throw(RuntimeError("boom")))
+    failed = client.post("/api/runs", json={"scenario_id": "s1_overstock"}).json()["run_id"]
+    reasons = {r["id"]: (r["status"], r["reason"]) for r in client.get("/api/runs").json()}
+    assert reasons[ok] == ("COMPLETED", None)
+    assert reasons[failed] == ("FAILED", "RuntimeError")
+    assert reasons[escalated] == ("ESCALATED", "INSUFFICIENT_DATA")

@@ -21,6 +21,11 @@ export function statusTone(status: string): keyof typeof TONES {
   return 'gray'
 }
 
+/** Status badge that names the reason when a run failed or escalated: "FAILED · LLM_QUOTA_EXHAUSTED". */
+export function RunStatus({ status, reason }: { status: string; reason?: string | null }) {
+  return <Badge tone={statusTone(status)}>{reason ? `${status} · ${reason}` : status}</Badge>
+}
+
 export function Card({ title, children, right }: { title?: ReactNode; children: ReactNode; right?: ReactNode }) {
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">

@@ -5,7 +5,7 @@ import Approvals from './pages/Approvals'
 import Evals from './pages/Evals'
 import PurchaseOrders from './pages/PurchaseOrders'
 import RunView from './pages/RunView'
-import { Badge, Card, statusTone } from './ui'
+import { Card, RunStatus } from './ui'
 
 type Page = 'launch' | 'run' | 'approvals' | 'pos' | 'evals'
 
@@ -65,7 +65,7 @@ function RunList({ onOpenRun }: { onOpenRun: (id: number) => void }) {
           {runs.map((r) => (
             <tr key={r.id} onClick={() => onOpenRun(r.id)} className="cursor-pointer border-t hover:bg-slate-50">
               <td className="py-1.5">{r.id}</td><td className="font-mono text-xs">{r.scenario_id}</td><td>{r.provider}</td>
-              <td><Badge tone={statusTone(r.status)}>{r.status}</Badge></td><td>{r.outcome ?? '–'} {r.quantity ?? ''}</td>
+              <td><RunStatus status={r.status} reason={r.reason} /></td><td>{r.outcome ?? '–'} {r.quantity ?? ''}</td>
             </tr>
           ))}
         </tbody>
