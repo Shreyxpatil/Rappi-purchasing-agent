@@ -69,13 +69,13 @@ def test_acting_without_decision_is_blocked(tool_ctx) -> None:
     assert r.error["details"]["reasons"] == ["NO_DECISION"]
 
 
-def test_two_blocked_attempts_escalate(tool_ctx) -> None:
+def test_the_second_blocked_attempt_escalates(tool_ctx) -> None:
     ctx = tool_ctx("s1_overstock")
     _decide(ctx, "BUY:SUP-ALQ:240")
-    for i, qty in enumerate((800, 10000)):
-        r = call_tool("create_po_draft", {**MILK, "deliveries": [{"day": 3, "qty": qty}],
-                                          "idempotency_key": f"b{i}"}, ctx)
-        assert r.error["code"] == "BLOCKED"
+    first = call_tool("create_po_draft", {**MILK, "deliveries": [{"day": 3, "qty": 800}], "idempotency_key": "b0"}, ctx)
+    assert first.error["code"] == "BLOCKED"
+    second = call_tool("create_po_draft", {**MILK, "deliveries": [{"day": 3, "qty": 10000}], "idempotency_key": "b1"}, ctx)
+    assert second.error["code"] == "ESCALATION_REQUIRED"
     r = call_tool("create_po_draft", {**MILK, "deliveries": [{"day": 3, "qty": 240}], "idempotency_key": "b3"}, ctx)
     assert r.error["code"] == "ESCALATION_REQUIRED" and r.error["details"]["reasons"] == ["VALIDATION_FAILED_TWICE"]
 

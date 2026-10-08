@@ -77,12 +77,15 @@ def _gate(ctx: ToolContext, action: ProposedAction, validation: ValidationResult
                       validation_failures=ctx.state.validation_failures, replans=ctx.state.replans,
                       human_approved=human_approved)
     if result.verdict in ("BLOCK", "ESCALATE"):
+        escalate = result.verdict == "ESCALATE"
         if result.verdict == "BLOCK":
             ctx.state.validation_failures += 1
+            # The second blocked action in a run escalates (policy max_validation_failures, D19/D20).
+            escalate = ctx.state.validation_failures >= ctx.policy.max_validation_failures
         _audit(ctx, f"{result.verdict}ED_{action.kind}", entity, entity_id,
                {"reasons": result.reasons, "details": result.details, "action": action.model_dump(mode="json")})
         ctx.session.flush()
-        code = "BLOCKED" if result.verdict == "BLOCK" else "ESCALATION_REQUIRED"
+        code = "ESCALATION_REQUIRED" if escalate else "BLOCKED"
         raise ToolError(code, f"policy gate: {', '.join(result.reasons)}",
                         {"reasons": result.reasons, **result.details})
     return result
