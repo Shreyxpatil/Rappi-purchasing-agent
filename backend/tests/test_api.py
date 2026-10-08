@@ -73,3 +73,12 @@ def test_supplier_failure_can_be_injected_for_a_run(client) -> None:
     assert supplier_steps[0]["output"]["message"] == "injected"
     bad = client.post("/api/runs", json={**body, "supplier_behaviour": {"SUP-ALQ": [{"type": "EXPLODED"}]}})
     assert bad.status_code == 422
+
+
+def test_cli_runs_a_case_and_answers_approvals_from_the_fixture() -> None:
+    from app.cli import run_case
+
+    session, run = run_case("s4_budget_binding")  # fixture approval_responses: ["APPROVE"]
+    assert (run.status, run.decision["quantity"]) == ("COMPLETED", 714)
+    session, run = run_case("s4_budget_override_rejected")  # ["REJECT"]: falls back to 342
+    assert (run.status, run.decision["quantity"], run.replan_count) == ("COMPLETED", 342, 1)
