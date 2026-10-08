@@ -57,7 +57,8 @@ class OpenAICompatibleClient(LLMClient):
         try:
             data = with_backoff(call, max_retries=self.max_retries, **kwargs)
         except RetryableError as e:
-            raise LLMError("RATE_LIMITED", f"gave up after {self.max_retries} retries: {e}") from e
+            code = "NETWORK" if str(e).startswith("transport") else "RATE_LIMITED"
+            raise LLMError(code, f"gave up after {self.max_retries} retries: {e}") from e
         return from_openai(data, self.model)
 
 

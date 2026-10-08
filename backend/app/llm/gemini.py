@@ -10,6 +10,7 @@
 import re
 from typing import Any
 
+import httpx
 from google import genai
 from google.genai import errors, types
 
@@ -23,14 +24,17 @@ class GeminiClient(LLMClient):
     name = "gemini"
 
     def __init__(self, api_key: str, model: str, *, thinking_level: str = "low", max_rpm: int = 8,
-                 client: Any = None, pacer: Pacer | None = None, max_retries: int = 5, sleep=None) -> None:
+                 client: Any = None, pacer: Pacer | None = None, max_retries: int = 5, sleep=None,
+                 timeout_s: float = 120.0) -> None:
         if not model:
             raise LLMError("CONFIG", "GEMINI_MODEL is not set")
         if client is None and not api_key:
             raise LLMError("CONFIG", "GEMINI_API_KEY is not set")
         self.model = model
         self.thinking_level = thinking_level
-        self.client = client or genai.Client(api_key=api_key)
+        # The SDK's default HTTP timeout is None: a request stalled by a network drop would block the run forever.
+        self.client = client or genai.Client(api_key=api_key,
+                                             http_options=types.HttpOptions(timeout=int(timeout_s * 1000)))
         self.pacer = pacer or Pacer(max_rpm)
         self.max_retries = max_retries
         self._sleep = sleep
@@ -54,12 +58,15 @@ class GeminiClient(LLMClient):
                 if e.code in RETRYABLE_CODES:
                     raise RetryableError(f"{e.code} {e.status}: {e.message}", _retry_after(e)) from e
                 raise LLMError(f"HTTP_{e.code}", f"{e.status}: {e.message}") from e
+            except httpx.TransportError as e:  # DNS failure, refused connection, timeout: transient
+                raise RetryableError(f"network: {type(e).__name__}: {e}") from e
 
         kwargs = {"sleep": self._sleep} if self._sleep else {}
         try:
             resp = with_backoff(call, max_retries=self.max_retries, **kwargs)
         except RetryableError as e:
-            raise LLMError("RATE_LIMITED", f"gave up after {self.max_retries} retries: {e}") from e
+            code = "NETWORK" if str(e).startswith("network") else "RATE_LIMITED"
+            raise LLMError(code, f"gave up after {self.max_retries} retries: {e}") from e
         return from_response(resp, self.model)
 
 

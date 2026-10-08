@@ -148,3 +148,20 @@ def test_factory_selects_provider_from_settings() -> None:
     assert isinstance(g, GeminiClient) and (g.model, g.thinking_level) == ("gemini-3.8-flash", "minimal")
     with pytest.raises(LLMError, match="unknown"):
         make_client("claude-by-mistake", settings=s)
+
+
+def test_network_errors_are_retried_then_reported_as_network() -> None:
+    import httpx
+
+    client, fake, sleeps = _client([httpx.ConnectError("Temporary failure in name resolution"),
+                                    _response(types.Part(text="ok"))])
+    assert client.complete([Message(role="user", content="x")], []).text == "ok" and len(sleeps) == 1
+    client, _, _ = _client([httpx.ReadTimeout("stalled")] * 3, max_retries=2)
+    with pytest.raises(LLMError) as e:
+        client.complete([Message(role="user", content="x")], [])
+    assert e.value.code == "NETWORK"
+
+
+def test_real_client_is_built_with_an_http_timeout() -> None:
+    g = GeminiClient("key", "gemini-3.8-flash", timeout_s=30)
+    assert g.client._api_client._http_options.timeout == 30000
