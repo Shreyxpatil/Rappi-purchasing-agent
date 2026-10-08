@@ -436,3 +436,24 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
 - **Why:** The brief asks what happens "if the outcome is different from what the agent expected". Every layer
   checks a different thing, from a different source of truth, and every failure becomes a reason code the next
   plan has to answer. The replan budget turns "keep trying" into an explicit hand-off to a human.
+
+## D29. Evaluation: deterministic graders, negative controls, scripted vs real runs
+
+- **Decision:** `evals/graders.py` grades every run on six deterministic dimensions (decision, information,
+  constraints, action, validation, recovery), plus the injection pair, approval alternatives and residual risk. A
+  dimension that does not apply is `None` (n/a), so a case with no supplier failure is never credited with
+  "recovery". *Constraints* re-validates each live PO from the database, excluding the PO's own effect on inbound
+  and budget, rather than trusting the validation that ran at the time.
+- **Negative controls:** known-bad scripted trajectories (`*__bad_*.json`) and tampered traces must fail the right
+  dimension, and only that one. Graders that cannot fail prove nothing.
+- **Defaults:**
+  - scripted: all 17 cases × 3 runs, a regression test that must be 100% and doubles as a determinism check;
+  - real providers: a four-case subset (one each from S1, S2 and S4, plus the injection case) × **1 run per
+    provider**, because a free-tier Groq run takes ~4 min (8k tokens/min) and Gemini ~2.5 min.
+
+  `--case` and `--runs` scale it up. Real runs are recorded per provider and merged into the report, so they can
+  run in the background.
+- **LLM judge:** only for explanation quality, against a written rubric, and only when asked for (`--judge`).
+- **Why:** The brief cares about the *quality of the evaluation approach*. Separating "is the system correct"
+  (scripted, deterministic, must be 100%) from "how good is the model's judgement" (real runs, pass rates) keeps
+  both honest. During development the graders already caught two scripts that skipped required evidence.
