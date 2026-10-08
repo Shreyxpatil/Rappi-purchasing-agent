@@ -127,8 +127,10 @@ def check_gemini(s: Settings, client: Any = None) -> Check:
                               if "generateContent" in (m.supported_actions or ["generateContent"])])
 
     def ping() -> None:
-        config = types.GenerateContentConfig(max_output_tokens=MAX_OUTPUT_TOKENS, thinking_config=types.ThinkingConfig(
-            thinking_level=s.gemini_thinking_level.upper()))
+        config = types.GenerateContentConfig(
+            max_output_tokens=MAX_OUTPUT_TOKENS,
+            thinking_config=types.ThinkingConfig(thinking_level=s.gemini_thinking_level.upper()),
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True))
         guard(lambda: client.models.generate_content(model=s.gemini_model, contents=PING, config=config))
 
     return run_check("gemini", s.gemini_model, list_models, ping)
