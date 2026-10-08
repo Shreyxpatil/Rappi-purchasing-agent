@@ -1,4 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { api, type RunSummary } from './api'
+import Launcher from './pages/Launcher'
+import RunView from './pages/RunView'
+import { Badge, Card, statusTone } from './ui'
 
 type Page = 'launch' | 'run' | 'approvals' | 'pos' | 'evals'
 
@@ -12,6 +16,12 @@ const NAV: { id: Page; label: string }[] = [
 
 export default function App() {
   const [page, setPage] = useState<Page>('launch')
+  const [runId, setRunId] = useState<number | null>(null)
+  const openRun = (id: number) => {
+    setRunId(id)
+    setPage('run')
+  }
+
   return (
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white">
@@ -31,8 +41,30 @@ export default function App() {
         </div>
       </header>
       <main className="mx-auto max-w-7xl px-4 py-6">
-        <p className="text-sm text-slate-500">Page: {page}</p>
+        {page === 'launch' && <Launcher onOpenRun={openRun} />}
+        {page === 'run' && (runId ? <RunView runId={runId} /> : <RunList onOpenRun={openRun} />)}
+        {page !== 'launch' && page !== 'run' && <p className="text-sm text-slate-500">Coming next.</p>}
       </main>
     </div>
+  )
+}
+
+function RunList({ onOpenRun }: { onOpenRun: (id: number) => void }) {
+  const [runs, setRuns] = useState<RunSummary[]>([])
+  useEffect(() => { api.runs().then(setRuns) }, [])
+  return (
+    <Card title="Runs">
+      <table className="w-full text-sm">
+        <thead className="text-left text-slate-500"><tr><th>#</th><th>Scenario</th><th>Provider</th><th>Status</th><th>Decision</th></tr></thead>
+        <tbody>
+          {runs.map((r) => (
+            <tr key={r.id} onClick={() => onOpenRun(r.id)} className="cursor-pointer border-t hover:bg-slate-50">
+              <td className="py-1.5">{r.id}</td><td className="font-mono text-xs">{r.scenario_id}</td><td>{r.provider}</td>
+              <td><Badge tone={statusTone(r.status)}>{r.status}</Badge></td><td>{r.outcome ?? '–'} {r.quantity ?? ''}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
   )
 }
