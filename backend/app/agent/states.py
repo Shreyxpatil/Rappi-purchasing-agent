@@ -1,6 +1,8 @@
 """States of a run and which tools the model may use in each.
 
-INTAKE -> INVESTIGATE -> DECIDE -> POLICY_GATE -> EXECUTE -> VALIDATE -> ... -> REPORT -> DONE
+INTAKE -> INVESTIGATE -> DECIDE -> POLICY_GATE -> EXECUTE -> VALIDATE -> AWAIT_SUPPLIER
+       -> VERIFY_OUTCOME -> REPORT -> DONE, with VERIFY_OUTCOME -> REPLAN -> INVESTIGATE on failure
+       (max replans from policy.yaml, then escalate).
 Code owns every transition; the model only works inside INVESTIGATE, EXECUTE and REPORT.
 """
 
@@ -15,7 +17,10 @@ class State(StrEnum):
     DECIDE = "DECIDE"
     POLICY_GATE = "POLICY_GATE"
     EXECUTE = "EXECUTE"
-    VALIDATE = "VALIDATE"  # post-action: database read back and diffed against the decision
+    VALIDATE = "VALIDATE"  # layer 2: database read back and diffed against the decision
+    AWAIT_SUPPLIER = "AWAIT_SUPPLIER"  # layer 3: the supplier answers each submitted PO
+    VERIFY_OUTCOME = "VERIFY_OUTCOME"  # layer 4: re-project with what was confirmed, compare with the prediction
+    REPLAN = "REPLAN"  # back to INVESTIGATE with the failure, or escalate when the budget is spent
     REPORT = "REPORT"
     DONE = "DONE"
 

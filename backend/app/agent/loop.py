@@ -28,8 +28,10 @@ from app.llm.base import LLMClient, LLMError, Message, ToolCall
 from app.models import AgentRun, AuditLog, POLine, PurchaseOrder, StockTransfer
 from app.policy import Policy, get_policy
 from app.tools import REGISTRY, ToolContext, call_tool
-from app.tools.act import decided_option, preview_gate, resolve_approval
-from app.tools.compute import assess_data, build_decision
+from app.engine.projection import project_inventory
+from app.supplier_mock import service as supplier
+from app.tools.act import decided_option, gate_price_change, preview_gate, resolve_approval
+from app.tools.compute import assess_data, build_decision, plan_context
 from app.tools.registry import ToolError, schema_for, tool_schema
 
 
@@ -70,7 +72,9 @@ class PurchasingAgent:
         r = self._load(run)
         handlers = {State.INTAKE: self._intake, State.INVESTIGATE: self._investigate, State.DECIDE: self._decide,
                     State.POLICY_GATE: self._policy_gate, State.EXECUTE: self._execute,
-                    State.VALIDATE: self._validate, State.REPORT: self._report}
+                    State.VALIDATE: self._validate, State.AWAIT_SUPPLIER: self._await_supplier,
+                    State.VERIFY_OUTCOME: self._verify_outcome, State.REPLAN: self._replan_state,
+                    State.REPORT: self._report}
         while run.status == RunStatus.RUNNING and r.state != State.DONE:
             handlers[r.state](r)
             if r.extra.get("invalid_calls", 0) >= MAX_CONSECUTIVE_MALFORMED and r.state in MAX_TURNS:
@@ -91,7 +95,9 @@ class PurchasingAgent:
         r.rec.step("approval", f"APPROVAL_{outcome.status}", {"by": decided_by, "comment": comment},
                    outcome.model_dump(mode="json"))
         run.status = RunStatus.RUNNING
-        if approve:
+        if r.state == State.VERIFY_OUTCOME:
+            pass  # a price-change decision: VERIFY_OUTCOME re-reads the PO and carries on (or replans)
+        elif approve:
             r.messages.append(Message(role="user", content=(
                 f"Approval {approval_id} granted by {decided_by}. Result: {json.dumps(outcome.result)}. "
                 "Complete any remaining action for the decided option, then call finish_execution.")))
@@ -188,7 +194,69 @@ class PurchasingAgent:
                            [f"{c['check']}: intended {c['intended']}, found {c['actual']}" for c in failed])
             r.rec.transition(State.REPORT, "post-action mismatch")
             return
-        r.rec.transition(State.REPORT)
+        r.rec.transition(State.AWAIT_SUPPLIER)
+
+    def _await_supplier(self, r: _Run) -> None:
+        """Layer 3: each PO submitted for this decision gets the supplier's answer, written as a PO event."""
+        option = decided_option(r.ctx)
+        pos = [po for po in self.session.scalars(select(PurchaseOrder).filter_by(status="SUBMITTED"))
+               if po.run_id == r.run.id or po.id == option.get("po_id")]
+        r.extra["attempt_pos"] = []
+        for po in pos:
+            start = time.perf_counter()
+            ev = supplier.respond(self.session, r.ctx.clock, po)
+            r.extra["attempt_pos"].append(po.id)
+            r.rec.step("supplier", ev.type, {"po_id": po.id, "supplier_id": po.supplier_id}, ev.model_dump(),
+                       ok=ev.type in ("CONFIRMED", "DELAYED"), latency_ms=int((time.perf_counter() - start) * 1000))
+        r.rec.transition(State.VERIFY_OUTCOME)
+
+    def _verify_outcome(self, r: _Run) -> None:
+        """Layer 4: read the POs back, settle price changes through the gate, then re-project inventory with
+        what the supplier actually confirmed and compare it with what the chosen option predicted (D12)."""
+        start = time.perf_counter()
+        option = decided_option(r.ctx)
+        failures: list[dict[str, Any]] = []
+        for po_id in r.extra.get("attempt_pos", []):
+            po = self.session.get(PurchaseOrder, po_id)
+            last = po.events[-1]
+            if po.status == "REJECTED":
+                failures.append({"code": "SUPPLIER_REJECTED", "supplier": po.supplier_id, "po_id": po.id,
+                                 "message": (last.payload or {}).get("message", "")})
+                self._exclude(r, po.supplier_id)
+            elif po.status == "CANCELLED":
+                failures.append({"code": "PRICE_CHANGE_REFUSED", "supplier": po.supplier_id, "po_id": po.id})
+                self._exclude(r, po.supplier_id)
+            elif po.status == "SUBMITTED" and last.type == "PRICE_CHANGE":
+                gate = gate_price_change(r.ctx, po, last.payload["proposed_unit_cost"])
+                r.rec.step("policy", gate.verdict, {"po_id": po.id, "price_change": last.payload}, gate.model_dump())
+                if gate.verdict == "APPROVAL":
+                    r.run.status = RunStatus.AWAITING_APPROVAL  # resumes here once a human answers
+                    return
+
+        trig = r.ctx.state.trigger
+        pc = plan_context(r.ctx, trig["node"], trig["sku"], None, r.ctx.state.demand_basis)  # type: ignore[arg-type]
+        actual = project_inventory(pc.available, pc.forecast, pc.existing_receipts, pc.horizon)
+        predicted = {"stockout_day": option["stockout_day"], "unmet_units": option["unmet_units"],
+                     "end_levels": option["projection"]}
+        worse = (actual.stockout_day is not None
+                 and (option["stockout_day"] is None or actual.stockout_day < option["stockout_day"])) \
+            or actual.unmet_units > option["unmet_units"] + 0.5
+        if worse and not failures:
+            failures.append({"code": "OUTCOME_WORSE_THAN_PREDICTED", "predicted": predicted,
+                             "actual": {"stockout_day": actual.stockout_day, "unmet_units": actual.unmet_units}})
+            for po_id in r.extra.get("attempt_pos", []):  # a short or late supplier is not asked again
+                po = self.session.get(PurchaseOrder, po_id)
+                if po.events[-1].type in ("PARTIAL", "DELAYED"):
+                    self._exclude(r, po.supplier_id)
+        r.rec.step("verification", "outcome_check", {"option_id": option["id"], "predicted": predicted},
+                   {"actual_end_levels": actual.end_levels, "stockout_day": actual.stockout_day,
+                    "unmet_units": actual.unmet_units, "failures": failures},
+                   ok=not failures, latency_ms=int((time.perf_counter() - start) * 1000))
+        if failures:
+            self._replan(r, "; ".join(f"{f['code']}" + (f" ({f['supplier']})" if f.get("supplier") else "")
+                                      for f in failures))
+        else:
+            r.rec.transition(State.REPORT, "outcome as predicted")
 
     def _report(self, r: _Run) -> None:
         d = r.ctx.state.decision
@@ -313,16 +381,30 @@ class PurchasingAgent:
                 "escalated": r.ctx.state.escalated}
 
     def _replan(self, r: _Run, reason: str) -> None:
+        r.extra["replan_reason"] = reason
+        r.rec.transition(State.REPLAN, reason)
+
+    def _replan_state(self, r: _Run) -> None:
+        """Count the replan; within budget go back to INVESTIGATE with the failure, else escalate."""
+        reason = r.extra.pop("replan_reason", "")
         r.ctx.state.replans += 1
-        r.ctx.state.decision = None
         r.run.replan_count = r.ctx.state.replans
+        r.ctx.state.decision = None
+        r.ctx.state.options = None  # options must be regenerated with the new exclusions
+        r.extra["evidence"] = [e for e in r.extra.get("evidence", []) if e != "generate_options"]
         r.extra["turns"] = {}
         if r.ctx.state.replans > self.policy.max_replans:
-            self._escalate(r, "MAX_REPLANS_REACHED", reason)
+            self._escalate(r, "MAX_REPLANS_REACHED", f"{self.policy.max_replans} replans spent; last failure: {reason}")
             r.rec.transition(State.REPORT, "max replans")
             return
-        r.messages.append(Message(role="user", content=f"Replan {r.ctx.state.replans}: {reason}"))
+        excluded = ", ".join(r.ctx.state.excluded_suppliers) or "none"
+        r.messages.append(Message(role="user", content=(
+            f"Replan {r.ctx.state.replans} of {self.policy.max_replans}: {reason}. Excluded suppliers: {excluded}. "
+            "Call generate_options again and propose a new decision.")))
         r.rec.transition(State.INVESTIGATE, f"replan {r.ctx.state.replans}")
+
+    def _exclude(self, r: _Run, supplier_id: str) -> None:
+        r.ctx.state.excluded_suppliers = sorted({*r.ctx.state.excluded_suppliers, supplier_id})
 
     # ------------------------------------------------------------------ plumbing
 

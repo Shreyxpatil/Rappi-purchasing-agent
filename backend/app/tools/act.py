@@ -425,6 +425,37 @@ def escalate(ctx: ToolContext, args: EscalateArgs) -> dict[str, Any]:
     return _idempotent(ctx, "escalate", args, run)
 
 
+def gate_price_change(ctx: ToolContext, po: PurchaseOrder, proposed_unit_cost: float) -> GateResult:
+    """A supplier proposed a new price on a submitted PO: accept it automatically within the variance
+    policy, otherwise create an approval. Returns the gate result."""
+    sku = po.lines[0].sku
+    qty = sum(l.qty_ordered for l in po.lines)
+    action = ProposedAction(kind="PRICE_CHANGE", sku=sku, supplier_id=po.supplier_id, po_id=po.id, qty=qty,
+                            unit_cost=proposed_unit_cost, value=round(qty * proposed_unit_cost, 2),
+                            currency=po.currency,
+                            reference_unit_cost=data.primary_terms(ctx.session, sku).unit_cost)
+    gate = _gate(ctx, action, None, "purchase_order", po.id)
+    if gate.verdict == "APPROVAL":
+        approval = _request_approval(ctx, gate, {"tool": "accept_price_change", "po_id": po.id,
+                                                 "proposed_unit_cost": proposed_unit_cost},
+                                     f"Accept {po.supplier_id}'s new price on {po.id}: {po.lines[0].unit_cost:g} -> "
+                                     f"{proposed_unit_cost:g} {po.currency} ({action.value:,.2f} total)")
+        _event(ctx, po, "APPROVAL_REQUESTED", {"approval_id": approval.id, "reasons": gate.reasons})
+    else:
+        _accept_price(ctx, po, proposed_unit_cost, "agent")
+    return gate
+
+
+def _accept_price(ctx: ToolContext, po: PurchaseOrder, unit_cost: float, actor: str) -> None:
+    delta = sum(l.qty_ordered * (unit_cost - l.unit_cost) for l in po.lines)
+    for l in po.lines:
+        l.unit_cost = unit_cost
+    po.status = "CONFIRMED"
+    _adjust_budget(ctx, po, po.lines[0].sku, delta)
+    _event(ctx, po, "PRICE_ACCEPTED", {"unit_cost": unit_cost}, source=actor)
+    _audit(ctx, "ACCEPT_PRICE_CHANGE", "purchase_order", po.id, {"unit_cost": unit_cost}, actor=actor)
+
+
 # --------------------------------------------------------------------------- human decisions on approvals
 
 
@@ -465,6 +496,10 @@ def resolve_approval(ctx: ToolContext, approval_id: int, approve: bool, decided_
                 _adjust_budget(ctx, po, line.sku, -(old - action["new_qty"]) * line.unit_cost)
                 _event(ctx, po, "LINE_REDUCED", {"from": old, "to": action["new_qty"]}, source="human")
                 result = {"po_id": po.id, "qty": action["new_qty"]}
+        elif action["tool"] == "accept_price_change":
+            po = _get_po(ctx, action["po_id"])
+            _accept_price(ctx, po, action["proposed_unit_cost"], "human")
+            result = {"po_id": po.id, "status": po.status, "unit_cost": action["proposed_unit_cost"]}
         elif action["tool"] == "cancel_po_line":
             po = _get_po(ctx, action["po_id"])
             line = _line(po, action["sku"])
@@ -480,8 +515,10 @@ def resolve_approval(ctx: ToolContext, approval_id: int, approve: bool, decided_
             ctx.state.excluded_option_ids = sorted({*ctx.state.excluded_option_ids, option["id"]})
         if "BUDGET_OVERRIDE" in approval.reasons:
             ctx.state.refused_overrides = sorted({*ctx.state.refused_overrides, "BUDGET_EXCEEDED"})
-        if action["tool"] == "submit_po":
+        if action["tool"] in ("submit_po", "accept_price_change"):
             po = _get_po(ctx, action["po_id"])
+            if action["tool"] == "accept_price_change":  # it was committed when submitted
+                _adjust_budget(ctx, po, po.lines[0].sku, -sum(l.qty_ordered * l.unit_cost for l in po.lines))
             po.status = "CANCELLED"
             _event(ctx, po, "APPROVAL_REJECTED", {"approval_id": approval.id, "comment": comment}, source="human")
             result = {"po_id": po.id, "status": po.status}

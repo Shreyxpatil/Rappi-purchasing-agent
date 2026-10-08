@@ -159,6 +159,11 @@ class _Builder:
         req = calculate_net_requirement(_net_input(self.inp, t))
         opt = self.purchase(t, _ctx(self.inp, req), [Delivery(day=t.lead_time_days, qty=rec.qty)],
                             is_recommendation=True, id=f"REC:{rec.id}:{rec.qty}")
+        if rec.supplier_id in self.unavailable and opt:
+            # e.g. that supplier rejected our PO earlier in this run: the recommendation cannot be executed
+            opt["violations"].append(Violation(code="SUPPLIER_EXCLUDED", hard=True,
+                                               detail={"supplier": rec.supplier_id}))
+            opt["blocked"] = True
         own = self.ref_req.order_qty
         if own > 0:
             self.rec_deviation_pct = round(abs(rec.qty - own) / own * 100, 2)

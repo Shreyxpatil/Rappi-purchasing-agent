@@ -1,0 +1,119 @@
+{
+ "case": "x_price_change",
+ "notes": "Good agent: accepts the correct recommendation; the supplier raises the price 8%; the gate routes it to approval.",
+ "turns": [
+  {
+   "tool_calls": [
+    {
+     "name": "get_inventory",
+     "args": {
+      "node": "BOG-01",
+      "sku": "COCA-1.5L"
+     }
+    },
+    {
+     "name": "get_forecast",
+     "args": {
+      "node": "BOG-01",
+      "sku": "COCA-1.5L"
+     }
+    },
+    {
+     "name": "get_open_pos",
+     "args": {
+      "node": "BOG-01",
+      "sku": "COCA-1.5L"
+     }
+    },
+    {
+     "name": "get_supplier_terms",
+     "args": {
+      "supplier_id": "SUP-FEMSA-CO",
+      "sku": "COCA-1.5L"
+     }
+    },
+    {
+     "name": "get_budget",
+     "args": {
+      "node": "BOG-01",
+      "sku": "COCA-1.5L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "calculate_net_requirement",
+     "args": {
+      "node": "BOG-01",
+      "sku": "COCA-1.5L"
+     }
+    },
+    {
+     "name": "generate_options",
+     "args": {
+      "node": "BOG-01",
+      "sku": "COCA-1.5L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "propose_decision",
+     "args": {
+      "option_id": "REC:REC-902:288",
+      "reasons": [
+       "recommendation 288 is within 2.04% of own 294 and passes every check"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "create_po_draft",
+     "args": {
+      "node": "BOG-01",
+      "sku": "COCA-1.5L",
+      "supplier_id": "SUP-FEMSA-CO",
+      "deliveries": [
+       {
+        "day": 2,
+        "qty": 288
+       }
+      ],
+      "idempotency_key": "create"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "submit_po",
+     "args": {
+      "po_id": "$ref:create_po_draft.po_id",
+      "idempotency_key": "submit"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "finish_execution",
+     "args": {
+      "summary": "PO for 288 submitted"
+     }
+    }
+   ]
+  },
+  {
+   "text": "Accepted the recommendation of 288 units (2.04% from the own requirement of 294). FEMSA confirmed the quantity but raised the price by 8%, above the 5% policy, so the new price went to a human and was approved. Demand over 9 days is 360 against 190 available; no stockout is projected."
+  }
+ ]
+}

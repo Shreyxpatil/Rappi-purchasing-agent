@@ -410,3 +410,29 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
 - **App factory:** `uvicorn app.main:create_app --factory`, so importing the module creates no database file.
 - **Why not WebSockets/SSE:** polling a run every second is enough for a demo, has no extra moving parts, and
   works the same in scripted and real-LLM mode.
+
+## D28. The feedback loop: validate, await the supplier, verify the outcome, replan
+
+- **Decision:** After EXECUTE the run goes `VALIDATE → AWAIT_SUPPLIER → VERIFY_OUTCOME`, and from there either to
+  REPORT or to `REPLAN → INVESTIGATE`.
+  - **VALIDATE** (layer 2) diffs the database against the decision. A mismatch escalates.
+  - **AWAIT_SUPPLIER** (layer 3) gets each submitted PO's answer from the mock supplier, written as PO events.
+  - **VERIFY_OUTCOME** (layer 4) reads the POs back:
+    - a rejection, or a refused price change, is a failure, and that supplier is excluded;
+    - a price change goes through the gate: auto within 5%, otherwise approval, with the run paused in
+      VERIFY_OUTCOME;
+    - inventory is re-projected with what was *actually* confirmed and compared with the chosen option's
+      prediction (D12): a new stockout, an earlier one or more unmet units is a failure, and a PARTIAL or
+      DELAYED supplier that caused it is excluded.
+  - **REPLAN** counts the attempt and clears the stale options, so the model must call `generate_options`
+    again with the new exclusions. It goes back to INVESTIGATE with the reason codes, or escalates with
+    `MAX_REPLANS_REACHED` once more than `max_replans` (3) would be needed.
+
+  A rejected approval also goes through REPLAN.
+- **Not a replan:** a price change approved by a human is a re-approval of the same decision, so `x_price_change`
+  expects 0 replans (the fixture was corrected; it said 1).
+- **Excluded suppliers block the recommendation:** after Alquería rejects, `REC:...:240` from Alquería is marked
+  `SUPPLIER_EXCLUDED` and blocked, so it cannot be re-chosen.
+- **Why:** The brief asks what happens "if the outcome is different from what the agent expected". Every layer
+  checks a different thing, from a different source of truth, and every failure becomes a reason code the next
+  plan has to answer. The replan budget turns "keep trying" into an explicit hand-off to a human.

@@ -16,12 +16,13 @@ def test_s1_overstock_end_to_end(run_case) -> None:
     _, run, s, fx = run_case("s1_overstock")
     assert run.status == "COMPLETED"
     assert _transitions(run) == ["INTAKE->INVESTIGATE", "INVESTIGATE->DECIDE", "DECIDE->POLICY_GATE",
-                                 "POLICY_GATE->EXECUTE", "EXECUTE->VALIDATE", "VALIDATE->REPORT", "REPORT->DONE"]
+                                 "POLICY_GATE->EXECUTE", "EXECUTE->VALIDATE", "VALIDATE->AWAIT_SUPPLIER",
+                                 "AWAIT_SUPPLIER->VERIFY_OUTCOME", "VERIFY_OUTCOME->REPORT", "REPORT->DONE"]
     diff = next(st for st in run.steps if st.kind == "validation")
     assert diff.ok and all(c["ok"] for c in diff.output["checks"])
     assert (run.decision["outcome"], run.decision["quantity"]) == (fx.expected.outcome, fx.expected.qty_min)
     po = s.scalars(select(PurchaseOrder).filter_by(run_id=run.id)).one()
-    assert (po.supplier_id, po.status, po.lines[0].qty_ordered) == ("SUP-ALQ", "SUBMITTED", 240)
+    assert (po.supplier_id, po.status, po.lines[0].qty_ordered) == ("SUP-ALQ", "CONFIRMED", 240)
     assert po.idempotency_key == f"run{run.id}:create"  # keys are scoped to the run
     assert "240" in run.narrative and _tool_errors(run) == []
     policy = next(st for st in run.steps if st.kind == "policy")
@@ -53,7 +54,7 @@ def test_s4_budget_pauses_for_approval_then_resumes(run_case) -> None:
     agent.resolve_and_resume(run, approval.id, approve=True, decided_by="category.manager")
     assert run.status == "COMPLETED"
     po = s.scalars(select(PurchaseOrder).filter_by(run_id=run.id)).one()
-    assert (po.status, po.lines[0].qty_ordered) == ("SUBMITTED", 714)
+    assert (po.status, po.lines[0].qty_ordered) == ("CONFIRMED", 714)
 
 
 def test_rejected_override_replans_to_the_budget_fallback(run_case) -> None:
@@ -64,8 +65,8 @@ def test_rejected_override_replans_to_the_budget_fallback(run_case) -> None:
     assert (run.decision["outcome"], run.decision["quantity"]) == ("MODIFY", 342)
     assert run.decision["residual_risk"] == fx.expected.residual_risk
     statuses = {p.lines[0].qty_ordered: p.status for p in s.scalars(select(PurchaseOrder).filter_by(run_id=run.id))}
-    assert statuses == {714: "CANCELLED", 342: "SUBMITTED"}
-    assert "EXECUTE->INVESTIGATE" in _transitions(run)  # the replan after the rejection
+    assert statuses == {714: "CANCELLED", 342: "CONFIRMED"}
+    assert {"EXECUTE->REPLAN", "REPLAN->INVESTIGATE"} <= set(_transitions(run))  # replan after the rejection
 
 
 def test_s2_acknowledges_partial_and_sources_alternate_with_approval(run_case) -> None:
@@ -76,7 +77,7 @@ def test_s2_acknowledges_partial_and_sources_alternate_with_approval(run_case) -
     assert run.status == "COMPLETED"
     assert s.get(PurchaseOrder, "PO-2002").status == "CONFIRMED"
     ceda = s.scalars(select(PurchaseOrder).filter_by(run_id=run.id, supplier_id="SUP-CEDA")).one()
-    assert (ceda.status, ceda.lines[0].qty_ordered) == ("SUBMITTED", 204)
+    assert (ceda.status, ceda.lines[0].qty_ordered) == ("CONFIRMED", 204)
 
 
 READS = {"tool_calls": [{"name": "get_inventory", "args": {"node": "BOG-01", "sku": "LECHE-ALQ-1L"}}]}
@@ -174,3 +175,61 @@ def test_missing_option_id_error_lists_the_valid_ids(run_case) -> None:
     _, run, _, _ = run_case("s1_overstock", turns)
     err = next(st for st in run.steps if st.name == "propose_decision").output["error"]
     assert err["code"] == "INVALID_ARGUMENTS" and err["details"]["valid_option_ids"][0] == "BUY:SUP-ALQ:240"
+
+
+def _approve_all(agent, run, s, answer=True):
+    """Answer every approval the run raises, like the eval runner does from the fixture."""
+    while run.status == "AWAITING_APPROVAL":
+        approval = s.scalars(select(Approval).filter_by(run_id=run.id, status="PENDING")).one()
+        agent.resolve_and_resume(run, approval.id, approve=answer, decided_by="buyer")
+
+
+def test_supplier_rejection_replans_to_an_alternate(run_case) -> None:
+    agent, run, s, fx = run_case("x_supplier_rejects")
+    _approve_all(agent, run, s)
+    assert (run.status, run.replan_count) == ("COMPLETED", 1)
+    assert (run.decision["outcome"], run.decision["quantity"]) == (fx.expected.outcome, 144)
+    pos = {p.supplier_id: p.status for p in s.scalars(select(PurchaseOrder).filter_by(run_id=run.id))}
+    assert pos == {"SUP-ALQ": "REJECTED", "SUP-ANDINA": "CONFIRMED"}
+    verify = [st for st in run.steps if st.kind == "verification"]
+    assert [v.ok for v in verify] == [False, True]
+    assert verify[0].output["failures"][0]["code"] == "SUPPLIER_REJECTED"
+    assert {"VERIFY_OUTCOME->REPLAN", "REPLAN->INVESTIGATE"} <= set(_transitions(run))
+
+
+def test_price_change_above_policy_needs_approval_then_confirms(run_case) -> None:
+    agent, run, s, _ = run_case("x_price_change")
+    assert (run.status, run.state) == ("AWAITING_APPROVAL", "VERIFY_OUTCOME")
+    approval = s.scalars(select(Approval).filter_by(run_id=run.id)).one()
+    assert approval.reasons == ["PRICE_VARIANCE"] and approval.action["proposed_unit_cost"] == 6264.0
+    agent.resolve_and_resume(run, approval.id, approve=True, decided_by="cm")
+    po = s.scalars(select(PurchaseOrder).filter_by(run_id=run.id)).one()
+    assert (run.status, run.replan_count, po.status, po.lines[0].unit_cost) == ("COMPLETED", 0, "CONFIRMED", 6264.0)
+
+
+def test_replans_are_capped_then_escalated(run_case) -> None:
+    agent, run, s, fx = run_case("x_replans_exhausted")
+    _approve_all(agent, run, s)
+    assert run.status == "ESCALATED" and run.replan_count == 4
+    assert next(st for st in run.steps if st.kind == "escalation").name == "MAX_REPLANS_REACHED"
+    pos = {p.supplier_id: p.status for p in s.scalars(select(PurchaseOrder).filter_by(run_id=run.id))}
+    assert pos == {e.supplier: "REJECTED" for e in fx.expected.final_pos}
+
+
+def test_injected_delay_that_causes_a_stockout_triggers_a_replan(run_case) -> None:
+    from app.models import Workspace
+
+    agent, run, s, _ = run_case("s1_overstock", turns=[])  # seed only; run with an injected supplier delay
+    ws = s.get(Workspace, 1)
+    ws.config = {**ws.config, "supplier_behaviour": {"SUP-ALQ": [{"type": "DELAYED", "days": 2}]}}
+    s.commit()
+    from app.agent.loop import PurchasingAgent
+    from app.llm.scripted import ScriptedClient
+
+    turns = script_turns("s1_overstock")[:-1] + [{"tool_calls": [{"name": "generate_options", "args": {
+        "node": "BOG-01", "sku": "LECHE-ALQ-1L"}}]}]
+    a = PurchasingAgent(s, ScriptedClient(turns))
+    r = a.run(a.start("s1_overstock", run.trigger))
+    verify = next(st for st in r.steps if st.kind == "verification")
+    assert not verify.ok and verify.output["failures"][0]["code"] == "OUTCOME_WORSE_THAN_PREDICTED"
+    assert verify.output["stockout_day"] == 4 and "SUP-ALQ" in r.context["state"]["excluded_suppliers"]

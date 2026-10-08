@@ -1,0 +1,196 @@
+{
+ "case": "x_supplier_rejects",
+ "notes": "Good agent: accepts the correct recommendation; the supplier rejects; it replans to the cheapest alternate with approval.",
+ "turns": [
+  {
+   "tool_calls": [
+    {
+     "name": "get_inventory",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "get_forecast",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "get_open_pos",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "get_supplier_terms",
+     "args": {
+      "supplier_id": "SUP-ALQ",
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "get_budget",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "get_storage_capacity",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "calculate_net_requirement",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "generate_options",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "propose_decision",
+     "args": {
+      "option_id": "REC:REC-901:240",
+      "reasons": [
+       "recommendation equals own requirement (240) and passes every check"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "create_po_draft",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L",
+      "supplier_id": "SUP-ALQ",
+      "deliveries": [
+       {
+        "day": 3,
+        "qty": 240
+       }
+      ],
+      "idempotency_key": "create-1"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "submit_po",
+     "args": {
+      "po_id": "$ref:create_po_draft.po_id",
+      "idempotency_key": "submit-1"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "finish_execution",
+     "args": {
+      "summary": "PO to SUP-ALQ submitted"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "list_alternate_suppliers",
+     "args": {
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "generate_options",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "propose_decision",
+     "args": {
+      "option_id": "BUY:SUP-ANDINA:144",
+      "reasons": [
+       "Alquería rejected the PO; cheapest alternate, +3.57%"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "create_po_draft",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L",
+      "supplier_id": "SUP-ANDINA",
+      "deliveries": [
+       {
+        "day": 3,
+        "qty": 144
+       }
+      ],
+      "idempotency_key": "create-2"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "submit_po",
+     "args": {
+      "po_id": "$ref:create_po_draft.po_id",
+      "idempotency_key": "submit-2"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "finish_execution",
+     "args": {
+      "summary": "PO to SUP-ANDINA submitted"
+     }
+    }
+   ]
+  },
+  {
+   "text": "Alquería rejected the PO for 240, so the plan was rebuilt without it: 144 units were ordered from the alternate supplier Andina (+3.57% price) after approval, and confirmed. The own requirement is 140 over the 5-day horizon; with 144 arriving on day 3 there is no stockout."
+  }
+ ]
+}

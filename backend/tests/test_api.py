@@ -26,8 +26,8 @@ def test_run_s1_scripted_end_to_end(client) -> None:
     assert [s["name"] for s in run["steps"] if s["kind"] == "transition"][-1] == "REPORT->DONE"
     pos = client.get("/api/purchase-orders").json()
     agent_po = next(p for p in pos["purchase_orders"] if p["created_by"] == "agent")
-    assert (agent_po["status"], agent_po["lines"][0]["qty_ordered"]) == ("SUBMITTED", 240)
-    assert [e["type"] for e in agent_po["events"]] == ["CREATED", "SUBMITTED"]
+    assert (agent_po["status"], agent_po["lines"][0]["qty_ordered"]) == ("CONFIRMED", 240)
+    assert [e["type"] for e in agent_po["events"]] == ["CREATED", "SUBMITTED", "CONFIRMED"]
 
 
 def test_approval_inbox_resumes_the_run(client) -> None:
@@ -54,5 +54,5 @@ def test_bad_requests(client) -> None:
     assert client.post("/api/runs", json={"scenario_id": "nope"}).status_code == 404
     r = client.post("/api/runs", json={"scenario_id": "s1_overstock", "provider": "gemini"})
     assert r.status_code == 400 and r.json()["detail"]["code"] == "CONFIG"  # no key/model configured in tests
-    assert client.post("/api/runs", json={"scenario_id": "x_price_change"}).status_code == 400  # no script yet
+    assert client.post("/api/runs", json={"scenario_id": "s3_promo_uplift"}).status_code == 400  # no script yet
     assert client.get("/api/runs/999").status_code == 404
