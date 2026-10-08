@@ -19,6 +19,7 @@ export default function Approvals({ onOpenRun }: { onOpenRun: (id: number) => vo
     setBusy(a.id)
     try {
       await api.answer(a.id, approve, comment[a.id] ?? '')
+      setPending((list) => list.filter((x) => x.id !== a.id)) // no second click on an answered request
       load()
       onOpenRun(a.run_id) // the run resumes in the background; follow it live
     } catch (e) {

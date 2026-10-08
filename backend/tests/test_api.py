@@ -172,3 +172,15 @@ def test_incomplete_injected_supplier_responses_are_rejected_up_front(client) ->
     for bad in ({"type": "PARTIAL"}, {"type": "PRICE_CHANGE"}, {"type": "DELAYED"}, {"type": "DELAYED", "days": 0}):
         r = client.post("/api/runs", json={"scenario_id": "s1_overstock", "supplier_behaviour": {"SUP-ALQ": [bad]}})
         assert r.status_code == 422, bad
+
+
+def test_a_second_answer_to_the_same_approval_does_not_fail_the_run(client) -> None:
+    from app import runner
+
+    run_id = client.post("/api/runs", json={"scenario_id": "s4_budget_binding"}).json()["run_id"]
+    approval_id = client.get("/api/approvals").json()[0]["id"]
+    with client.app.state.session_factory() as s:
+        runner.answer_approval(s, approval_id, True, "cm", "")
+        again = runner.answer_approval(s, approval_id, False, "cm", "double click")
+        assert again.status == "COMPLETED"
+    assert client.get(f"/api/runs/{run_id}").json()["status"] == "COMPLETED"

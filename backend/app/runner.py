@@ -15,6 +15,7 @@ from app.fixtures import load_fixture
 from app.llm.factory import make_client
 from app.models import AgentRun, AgentStep, Approval, Workspace
 from app.seed import seed_workspace
+from app.tools.registry import ToolError
 
 log = logging.getLogger("app.runner")
 
@@ -55,10 +56,20 @@ def execute_run(session: Session, run_id: int) -> AgentRun:
 def answer_approval(session: Session, approval_id: int, approve: bool, decided_by: str, comment: str) -> AgentRun:
     approval = session.get(Approval, approval_id)
     run_id = approval.run_id
+    if approval.status != "PENDING":  # e.g. a double click: the first answer already resumed the run
+        log.warning("approval %s is already %s; ignoring the second answer", approval_id, approval.status)
+        return session.get(AgentRun, run_id)
     try:
         run = session.get(AgentRun, run_id)
         agent = PurchasingAgent(session, make_client(run.provider, case_id=run.scenario_id))
         return agent.resolve_and_resume(run, approval_id, approve, decided_by, comment)
+    except ToolError as e:
+        session.rollback()
+        if e.code == "INVALID_STATE":  # lost a race with another answer; nothing was changed
+            log.warning("approval %s: %s; ignoring", approval_id, e.message)
+            return session.get(AgentRun, run_id)
+        fail_run(session, run_id, e.code, e.message)
+        raise
     except BaseException as e:
         session.rollback()
         fail_run(session, run_id, type(e).__name__, str(e))
