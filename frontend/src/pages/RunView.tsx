@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, type RunDetail, type Step } from '../api'
+import { DecisionCard, ProjectionChart } from '../components'
 import { Badge, Card, Json, statusTone } from '../ui'
 
 const KIND_LABEL: Record<string, string> = {
@@ -8,7 +9,7 @@ const KIND_LABEL: Record<string, string> = {
   narrative_check: 'narrative check', nudge: 'nudge', intake: 'intake', error: 'error',
 }
 
-export default function RunView({ runId }: { runId: number }) {
+export default function RunView({ runId, onApprovals }: { runId: number; onApprovals: () => void }) {
   const [run, setRun] = useState<RunDetail | null>(null)
   const [error, setError] = useState('')
 
@@ -44,7 +45,19 @@ export default function RunView({ runId }: { runId: number }) {
         {run.status === 'RUNNING' && <span className="animate-pulse text-sm text-sky-700">running…</span>}
       </div>
       {run.error && <p className="rounded bg-rose-50 p-2 text-sm text-rose-700">{run.error}</p>}
-      <Timeline steps={run.steps} />
+      {run.status === 'AWAITING_APPROVAL' && (
+        <p className="rounded bg-amber-50 p-3 text-sm text-amber-800">
+          The policy gate needs a human decision.{' '}
+          <button onClick={onApprovals} className="font-medium underline">Open the approvals inbox</button>
+        </p>
+      )}
+      <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+        <Timeline steps={run.steps} />
+        <div className="space-y-4">
+          {run.decision && <DecisionCard decision={run.decision} narrative={run.narrative} source={run.narrative_source} />}
+          {run.projection && <ProjectionChart projection={run.projection} />}
+        </div>
+      </div>
     </div>
   )
 }

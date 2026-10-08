@@ -42,7 +42,7 @@ export default function App() {
       </header>
       <main className="mx-auto max-w-7xl px-4 py-6">
         {page === 'launch' && <Launcher onOpenRun={openRun} />}
-        {page === 'run' && (runId ? <RunView runId={runId} /> : <RunList onOpenRun={openRun} />)}
+        {page === 'run' && (runId ? <RunView runId={runId} onApprovals={() => setPage('approvals')} /> : <RunList onOpenRun={openRun} />)}
         {page !== 'launch' && page !== 'run' && <p className="text-sm text-slate-500">Coming next.</p>}
       </main>
     </div>
