@@ -481,8 +481,9 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
 
 - **Decision:** `scripts/record_demo.py` drives the real UI and API with Playwright (1440×900), on a fresh server
   and database per video, and draws step captions and a provider label on screen. Scripted videos cost nothing
-  and replay the same way every time. A real-model video runs `make check-providers` first, and is kept only if
-  the run ends COMPLETED with the expected result; any failure deletes it, with no automatic retry. In a kept real
+  and replay the same way every time. A real-model video runs `make check-providers` first (`--skip-preflight`
+  saves that call on a tight quota; the API still checks before the run starts), and is kept only if the run ends
+  COMPLETED with the expected result; any failure deletes it, with no automatic retry. In a kept real
   video only the waiting stretches are sped up (with a "sped up Nx" label); decisions, approvals and results play
   at normal speed.
 - **Why:** A hand-recorded video cannot be re-made after a change and can hide a failed run. A script makes the

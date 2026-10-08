@@ -464,6 +464,8 @@ def model_name(var: str) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("videos", nargs="+", choices=["scripted", "gemini", "groq"])
+    ap.add_argument("--skip-preflight", action="store_true",
+                    help="skip the separate make check-providers call (the API still checks before the run)")
     args = ap.parse_args()
     if not (ROOT / "frontend" / "dist" / "index.html").exists():
         print("build the UI first: cd frontend && npm install && npm run build")
@@ -474,7 +476,7 @@ def main() -> int:
         out = OUT / ("demo-scripted.mp4" if name == "scripted" else REAL[name]["file"])
         workdir = Path(tempfile.mkdtemp(prefix=f"demo-{name}-"))
         try:
-            if name != "scripted":
+            if name != "scripted" and not args.skip_preflight:
                 pre = subprocess.run(["make", "-s", "check-providers", f"ONLY={REAL[name]['provider']}"], cwd=ROOT)
                 if pre.returncode != 0:
                     raise Failed("provider preflight is not OK")
@@ -494,6 +496,10 @@ def main() -> int:
             if name == "scripted":
                 (OUT / "replan.gif").unlink(missing_ok=True)
             print(f"SKIPPED {name}: {type(e).__name__}: {e}")
+            if (workdir / "server.log").exists():  # keep the provider's exact error for diagnosis
+                kept = Path(tempfile.gettempdir()) / f"demo-failure-{name}-server.log"
+                shutil.copy(workdir / "server.log", kept)
+                print(f"server log kept at {kept}")
             status = 1
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
