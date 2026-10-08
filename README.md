@@ -27,7 +27,13 @@ make test                                    # full suite, no key needed
 make demo                                    # s1_overstock end to end, scripted, ~0.2 s
 make demo CASE=x_supplier_rejects            # supplier rejects -> replan -> approval -> confirmed
 make run                                     # API on http://localhost:8000 (interactive docs at /docs)
+make ui                                      # UI on http://localhost:5173 (Node 20+; proxies /api to :8000)
 ```
+
+**UI:** a scenario launcher (choose a provider, optionally inject a supplier failure), a live run timeline (every
+step with its input, output and latency), a decision card with factors and constraint checks, an inventory projection
+chart (do nothing vs chosen vs confirmed), an approvals inbox with side-by-side alternatives, purchase-order history,
+and the evaluation results.
 
 **Docker:** `docker compose up --build` starts the API on port 8000 (`API_PORT=8001 docker compose up` if that port
 is taken). `.env` is optional and only needed for real providers.
@@ -405,7 +411,8 @@ The brief lists optional buyer problems. These are already handled by the same a
 - **Real-model evals are small:** free-tier quotas allow one run per case on a four-case subset per provider. That
   is enough to show where model judgement differs, not to estimate pass rates tightly. Use `--runs` and `--case`
   for more.
-- **UI:** the API is complete (runs, steps, approvals, POs). A React UI on top of it is next.
+- **UI is functional, not polished:** it polls the API instead of streaming, has no auth, and in Docker only the API
+  is served for now (`make ui` for the UI).
 - **Supplier is a mock:** it answers synchronously when the run reaches AWAIT_SUPPLIER. A real integration would
   answer asynchronously (webhook or EDI); the state machine already pauses and resumes, so that is a transport change.
 - **Single workspace:** loading a scenario replaces the domain data, and a paused run from another scenario is

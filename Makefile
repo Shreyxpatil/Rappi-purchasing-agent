@@ -1,4 +1,4 @@
-.PHONY: setup test demo eval eval-real run docker-up docker-down clean
+.PHONY: setup test demo eval eval-real run ui docker-up docker-down clean
 
 CASE ?= s1_overstock
 PROVIDER ?= scripted
@@ -20,6 +20,9 @@ eval-real:        ## real-model evals: default subset x 1 run on Groq and Gemini
 
 run:              ## start the API on http://localhost:8000 (docs at /docs)
 	cd backend && uv run uvicorn app.main:create_app --factory --reload --port 8000
+
+ui:               ## start the UI on http://localhost:5173 (needs `make run` in another terminal)
+	cd frontend && npm install && npm run dev
 
 docker-up:        ## build and start the API in Docker
 	docker compose up --build
