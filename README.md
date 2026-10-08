@@ -392,13 +392,15 @@ provider in [`evals/report.md`](evals/report.md).
 | Video | Provider | Scenarios | Real duration | Speed-up |
 |---|---|---|---|---|
 | [demo-scripted.mp4](docs/demo/demo-scripted.mp4) (2:25) | scripted (offline replay) | `s1_overstock`, `x_supplier_rejects`, `s4_budget_override_rejected`, Evaluations tab | 2:25 | none |
+| [demo-gemini.mp4](docs/demo/demo-gemini.mp4) (1:34) | Gemini `gemini-3.7-flash`, live | `s1_overstock` with "Supplier rejects" injected: replan, approval, Andina confirms 144 | 5:39 | 10x on waiting stretches only |
 
 External video link: _to be added_
 
 The videos are recorded from the real UI and API by [`scripts/record_demo.py`](scripts/record_demo.py) (Playwright,
 captions drawn on screen): `make demo-video`. A real-model video is recorded only after `make check-providers`
 passes, and is kept only if the run completes with the expected result. Only its waiting stretches are sped up,
-and the step latencies on screen are the real ones.
+and the step latencies on screen are the real ones. The Gemini video used `gemini-3.7-flash` because
+`gemini-3.8-flash` was answering `503 high demand` at the time; the timeline shows the provider retries it still hit.
 
 **Quick path (no key, about 1 s per run):** `docker compose up --build`, or `make run` after `cd frontend && npm install
 && npm run build`. Open **http://localhost:8000** and keep the provider on **scripted**. Every scenario below replays a
