@@ -125,3 +125,15 @@ def test_runs_left_running_by_a_dead_server_are_failed_at_startup(tmp_path) -> N
     with TestClient(create_app(url)) as c:
         run = c.get(f"/api/runs/{run_id}").json()
     assert run["status"] == "FAILED" and run["steps"][-1]["name"] == "TASK_LOST"
+
+
+def test_built_ui_is_served_at_root_without_shadowing_the_api(tmp_path, monkeypatch) -> None:
+    import app.main as main
+
+    dist = tmp_path / "frontend" / "dist"
+    dist.mkdir(parents=True)
+    (dist / "index.html").write_text("<title>Purchasing Agent</title>")
+    monkeypatch.setattr(main, "REPO_ROOT", tmp_path)
+    with TestClient(main.create_app("sqlite://")) as c:
+        assert "Purchasing Agent" in c.get("/").text
+        assert c.get("/api/health").json() == {"status": "ok"}

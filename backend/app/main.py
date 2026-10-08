@@ -3,11 +3,12 @@
 import logging
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app import runner
 
 from app.api import router
-from app.config import get_settings
+from app.config import REPO_ROOT, get_settings
 from app.db import create_schema, make_engine, make_session_factory
 from app.logs import configure_logging
 
@@ -28,5 +29,10 @@ def create_app(database_url: str | None = None) -> FastAPI:
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    # The built UI (frontend/dist, produced by `npm run build` or the Docker image) is served at /.
+    # Mounted last so every /api route wins.
+    ui = REPO_ROOT / "frontend" / "dist"
+    if ui.is_dir():
+        app.mount("/", StaticFiles(directory=ui, html=True), name="ui")
     return app
 

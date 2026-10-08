@@ -1,3 +1,12 @@
+# Stage 1: build the React UI.
+FROM node:22-slim AS ui
+WORKDIR /ui
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+# Stage 2: the API, which also serves the built UI at / (one container, one port).
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
@@ -10,6 +19,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY backend backend
 COPY evals evals
+COPY --from=ui /ui/dist frontend/dist
 ENV PATH="/opt/venv/bin:$PATH"
 
 EXPOSE 8000

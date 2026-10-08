@@ -2,7 +2,7 @@ services:
   api:
     build: .
     ports:
-      - "${API_PORT:-8000}:8000"   # API_PORT=8001 docker compose up, if 8000 is taken
+      - "${API_PORT:-8000}:8000"   # UI and API: http://localhost:8000 (API_PORT=8001 if 8000 is taken)
     env_file:
       - path: .env          # optional: only needed for real providers (Gemini / Groq)
         required: false

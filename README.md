@@ -35,8 +35,9 @@ step with its input, output and latency), a decision card with factors and const
 chart (do nothing vs chosen vs confirmed), an approvals inbox with side-by-side alternatives, purchase-order history,
 and the evaluation results.
 
-**Docker:** `docker compose up --build` starts the API on port 8000 (`API_PORT=8001 docker compose up` if that port
-is taken). `.env` is optional and only needed for real providers.
+**Docker:** `docker compose up --build` builds the UI and the API into one container. Open **http://localhost:8000**
+for the UI (the API is under `/api`, its docs at `/docs`). Use `API_PORT=8001 docker compose up` if port 8000 is taken.
+`.env` is optional and only needed for real providers.
 
 ### Quick demo path: scripted mode (default)
 
