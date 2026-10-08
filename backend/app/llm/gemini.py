@@ -15,7 +15,7 @@ from google import genai
 from google.genai import errors, types
 
 from app.llm.base import LLMClient, LLMError, LLMResponse, Message, ToolCall
-from app.llm.pacing import Pacer, RetryableError, with_backoff
+from app.llm.pacing import GiveUp, Pacer, RetryableError, give_up_code, with_backoff
 
 RETRYABLE_CODES = {429, 500, 502, 503, 504}
 
@@ -25,7 +25,7 @@ class GeminiClient(LLMClient):
 
     def __init__(self, api_key: str, model: str, *, thinking_level: str = "low", max_rpm: int = 8,
                  client: Any = None, pacer: Pacer | None = None, max_retries: int = 5, sleep=None,
-                 timeout_s: float = 120.0) -> None:
+                 timeout_s: float = 120.0, max_call_s: float = 300.0) -> None:
         if not model:
             raise LLMError("CONFIG", "GEMINI_MODEL is not set")
         if client is None and not api_key:
@@ -37,6 +37,7 @@ class GeminiClient(LLMClient):
                                              http_options=types.HttpOptions(timeout=int(timeout_s * 1000)))
         self.pacer = pacer or Pacer(max_rpm)
         self.max_retries = max_retries
+        self.max_call_s = max_call_s
         self._sleep = sleep
 
     def complete(self, messages: list[Message], tools: list[dict[str, Any]]) -> LLMResponse:
@@ -51,22 +52,25 @@ class GeminiClient(LLMClient):
         )
 
         def call():
-            self.pacer.wait()
+            self.pacer.wait(self.on_wait)
             try:
                 return self.client.models.generate_content(model=self.model, contents=contents, config=config)
             except errors.APIError as e:
+                if e.code == 429:
+                    raise RetryableError(f"429 {e.status}: {e.message}", _retry_after(e), kind="rate_limit",
+                                         daily=_is_daily_quota(e)) from e
                 if e.code in RETRYABLE_CODES:
                     raise RetryableError(f"{e.code} {e.status}: {e.message}", _retry_after(e)) from e
                 raise LLMError(f"HTTP_{e.code}", f"{e.status}: {e.message}") from e
             except httpx.TransportError as e:  # DNS failure, refused connection, timeout: transient
-                raise RetryableError(f"network: {type(e).__name__}: {e}") from e
+                raise RetryableError(f"{type(e).__name__}: {e}", kind="network") from e
 
         kwargs = {"sleep": self._sleep} if self._sleep else {}
         try:
-            resp = with_backoff(call, max_retries=self.max_retries, **kwargs)
-        except RetryableError as e:
-            code = "NETWORK" if str(e).startswith("network") else "RATE_LIMITED"
-            raise LLMError(code, f"gave up after {self.max_retries} retries: {e}") from e
+            resp = with_backoff(call, max_retries=self.max_retries, max_total_s=self.max_call_s,
+                                on_wait=self.on_wait, **kwargs)
+        except GiveUp as g:
+            raise LLMError(give_up_code(g), str(g)) from g
         return from_response(resp, self.model)
 
 
@@ -114,10 +118,18 @@ def from_response(resp: Any, model: str) -> LLMResponse:
     )
 
 
+def _details(e: errors.APIError) -> list[dict[str, Any]]:
+    return (e.details or {}).get("error", {}).get("details", []) if isinstance(e.details, dict) else []
+
+
+def _is_daily_quota(e: errors.APIError) -> bool:
+    """A QuotaFailure on a per-day quota will not clear by retrying within one run."""
+    return any("PerDay" in str(v.get("quotaId", "")) for d in _details(e) for v in d.get("violations", []))
+
+
 def _retry_after(e: errors.APIError) -> float | None:
     """Gemini puts a RetryInfo {'retryDelay': '17s'} in the error details on 429."""
-    details = (e.details or {}).get("error", {}).get("details", []) if isinstance(e.details, dict) else []
-    for d in details:
+    for d in _details(e):
         m = re.fullmatch(r"([\d.]+)s", str(d.get("retryDelay", "")))
         if m:
             return float(m.group(1))

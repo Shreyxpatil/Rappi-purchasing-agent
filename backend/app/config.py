@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     openai_compat_api_key: str = ""
     openai_compat_model: str = ""
     llm_max_rpm: int = 8
+    llm_max_call_seconds: float = 300  # total time one model call may spend waiting and retrying
+    run_max_seconds: float = 1200  # active wall-clock time one run may use (approval waits excluded)
 
 
 @lru_cache

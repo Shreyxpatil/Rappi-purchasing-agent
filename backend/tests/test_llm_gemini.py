@@ -98,7 +98,7 @@ def test_gives_up_after_max_retries_and_fails_fast_on_client_errors() -> None:
     client, _, _ = _client([_api_error(429, "RESOURCE_EXHAUSTED")] * 3, max_retries=2)
     with pytest.raises(LLMError) as e:
         client.complete([Message(role="user", content="x")], [])
-    assert e.value.code == "RATE_LIMITED"
+    assert e.value.code == "LLM_QUOTA_EXHAUSTED"
     client, fake, sleeps = _client([_api_error(400, "INVALID_ARGUMENT")])
     with pytest.raises(LLMError) as e:
         client.complete([Message(role="user", content="x")], [])
@@ -165,3 +165,52 @@ def test_network_errors_are_retried_then_reported_as_network() -> None:
 def test_real_client_is_built_with_an_http_timeout() -> None:
     g = GeminiClient("key", "gemini-3.8-flash", timeout_s=30)
     assert g.client._api_client._http_options.timeout == 30000
+
+
+def _quota_error(quota_id, retry_delay="20s"):
+    details = [{"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                "violations": [{"quotaMetric": "generate_content_free_tier_requests", "quotaId": quota_id}]},
+               {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": retry_delay}]
+    return errors.APIError(429, {"error": {"code": 429, "status": "RESOURCE_EXHAUSTED", "message": "quota",
+                                           "details": details}})
+
+
+def test_daily_quota_fails_fast_without_waiting() -> None:
+    client, fake, sleeps = _client([_quota_error("GenerateRequestsPerDayPerProjectPerModel-FreeTier")])
+    with pytest.raises(LLMError) as e:
+        client.complete([Message(role="user", content="x")], [])
+    assert e.value.code == "LLM_QUOTA_EXHAUSTED" and "daily" in str(e.value)
+    assert len(fake.models.calls) == 1 and sleeps == []
+
+
+def test_retry_delay_longer_than_the_call_budget_fails_fast() -> None:
+    client, fake, sleeps = _client([_quota_error("GenerateRequestsPerMinutePerProjectPerModel", "900s")],
+                                   max_call_s=300)
+    with pytest.raises(LLMError) as e:
+        client.complete([Message(role="user", content="x")], [])
+    assert e.value.code == "LLM_QUOTA_EXHAUSTED" and "900" in str(e.value) and sleeps == []
+
+
+def test_total_waiting_is_bounded_by_the_call_budget() -> None:
+    from app.llm.pacing import GiveUp, RetryableError, give_up_code, with_backoff
+
+    clock, slept = [0.0], []
+
+    def sleep(d):
+        slept.append(d)
+        clock[0] += d
+
+    def always_down():
+        raise RetryableError("ReadTimeout", kind="server")
+
+    with pytest.raises(GiveUp) as g:
+        with_backoff(always_down, max_retries=50, base=2, cap=60, max_total_s=100, sleep=sleep, now=lambda: clock[0])
+    assert sum(slept) <= 100 and g.value.reason == "budget" and give_up_code(g.value) == "LLM_TIMEOUT"
+
+
+def test_every_wait_is_reported_through_the_hook() -> None:
+    waits = []
+    client, _, _ = _client([_api_error(429, "RESOURCE_EXHAUSTED", "3s"), _response(types.Part(text="ok"))])
+    client.on_wait = waits.append
+    client.complete([Message(role="user", content="x")], [])
+    assert waits[0]["reason"] == "rate_limit" and waits[0]["delay_s"] >= 3 and waits[0]["attempt"] == 1

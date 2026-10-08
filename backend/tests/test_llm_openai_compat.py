@@ -71,3 +71,22 @@ def test_client_error_fails_fast_and_config_is_validated() -> None:
     assert e.value.code == "HTTP_401" and len(calls) == 1 and sleeps == []
     with pytest.raises(LLMError, match="OPENAI_COMPAT_API_KEY"):
         OpenAICompatibleClient("https://x", "", "m")
+
+
+def test_groq_daily_token_limit_fails_fast() -> None:
+    body = ('{"error":{"message":"Rate limit reached for model qwen/qwen3.8-27b on tokens per day (TPD): '
+            'Limit 500000, Used 499800","type":"tokens","code":"rate_limit_exceeded"}}')
+    client, sleeps = _client(lambda req: httpx.Response(429, headers={"retry-after": "3600"}, text=body))
+    with pytest.raises(LLMError) as e:
+        client.complete([Message(role="user", content="x")], [])
+    assert e.value.code == "LLM_QUOTA_EXHAUSTED" and "daily" in str(e.value) and sleeps == []
+
+
+def test_network_outage_is_reported_as_network() -> None:
+    def down(req):
+        raise httpx.ConnectError("Temporary failure in name resolution")
+
+    client, sleeps = _client(down, max_retries=2)
+    with pytest.raises(LLMError) as e:
+        client.complete([Message(role="user", content="x")], [])
+    assert e.value.code == "NETWORK" and len(sleeps) == 2

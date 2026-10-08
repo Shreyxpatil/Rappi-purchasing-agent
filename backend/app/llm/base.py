@@ -1,6 +1,7 @@
 """The LLM contract the agent depends on. Providers translate to and from these types."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -46,6 +47,9 @@ class LLMError(Exception):
 
 class LLMClient(ABC):
     name: str = "base"
+    # Set by the agent before each call: receives {"reason", "delay_s", ...} for every retry or pacing wait,
+    # so the run's trace shows the wait while it happens.
+    on_wait: Callable[[dict[str, Any]], None] | None = None
 
     @abstractmethod
     def complete(self, messages: list[Message], tools: list[dict[str, Any]]) -> LLMResponse:

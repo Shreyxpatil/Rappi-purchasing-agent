@@ -11,7 +11,7 @@ from typing import Any
 import httpx
 
 from app.llm.base import LLMClient, LLMError, LLMResponse, Message, ToolCall
-from app.llm.pacing import Pacer, RetryableError, with_backoff
+from app.llm.pacing import GiveUp, Pacer, RetryableError, give_up_code, with_backoff
 
 RETRYABLE_CODES = {429, 500, 502, 503, 504}
 
@@ -21,7 +21,7 @@ class OpenAICompatibleClient(LLMClient):
 
     def __init__(self, base_url: str, api_key: str, model: str, *, max_rpm: int = 8,
                  transport: httpx.BaseTransport | None = None, pacer: Pacer | None = None, max_retries: int = 5,
-                 sleep=None, timeout: float = 60.0) -> None:
+                 sleep=None, timeout: float = 60.0, max_call_s: float = 300.0) -> None:
         missing = [n for n, v in (("OPENAI_COMPAT_BASE_URL", base_url), ("OPENAI_COMPAT_API_KEY", api_key),
                                   ("OPENAI_COMPAT_MODEL", model)) if not v]
         if missing:
@@ -31,6 +31,7 @@ class OpenAICompatibleClient(LLMClient):
                                  headers={"Authorization": f"Bearer {api_key}"})
         self.pacer = pacer or Pacer(max_rpm)
         self.max_retries = max_retries
+        self.max_call_s = max_call_s
         self._sleep = sleep
 
     def complete(self, messages: list[Message], tools: list[dict[str, Any]]) -> LLMResponse:
@@ -40,25 +41,30 @@ class OpenAICompatibleClient(LLMClient):
             body["tool_choice"] = "auto"
 
         def call() -> dict[str, Any]:
-            self.pacer.wait()
+            self.pacer.wait(self.on_wait)
             try:
                 r = self.http.post("/chat/completions", json=body)
             except httpx.TransportError as e:
-                raise RetryableError(f"transport: {e}") from e
+                raise RetryableError(f"{type(e).__name__}: {e}", kind="network") from e
             if r.status_code in RETRYABLE_CODES:
                 retry_after = r.headers.get("retry-after")
-                raise RetryableError(f"HTTP {r.status_code}: {r.text[:200]}",
-                                     float(retry_after) if retry_after and retry_after.replace(".", "").isdigit() else None)
+                hint = float(retry_after) if retry_after and retry_after.replace(".", "").isdigit() else None
+                text = r.text[:300]
+                if r.status_code == 429:
+                    # Groq names the exhausted window, e.g. "tokens per day (TPD)" or "requests per day (RPD)".
+                    daily = any(k in text for k in ("per day", "(TPD)", "(RPD)"))
+                    raise RetryableError(f"HTTP 429: {text}", hint, kind="rate_limit", daily=daily)
+                raise RetryableError(f"HTTP {r.status_code}: {text}", hint)
             if r.status_code >= 400:
                 raise LLMError(f"HTTP_{r.status_code}", r.text[:300])
             return r.json()
 
         kwargs = {"sleep": self._sleep} if self._sleep else {}
         try:
-            data = with_backoff(call, max_retries=self.max_retries, **kwargs)
-        except RetryableError as e:
-            code = "NETWORK" if str(e).startswith("transport") else "RATE_LIMITED"
-            raise LLMError(code, f"gave up after {self.max_retries} retries: {e}") from e
+            data = with_backoff(call, max_retries=self.max_retries, max_total_s=self.max_call_s,
+                                on_wait=self.on_wait, **kwargs)
+        except GiveUp as g:
+            raise LLMError(give_up_code(g), str(g)) from g
         return from_openai(data, self.model)
 
 
