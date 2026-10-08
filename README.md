@@ -395,6 +395,12 @@ provider in [`evals/report.md`](evals/report.md).
 | [demo-gemini.mp4](docs/demo/demo-gemini.mp4) (1:34) | Gemini `gemini-3.7-flash`, live | `s1_overstock` with "Supplier rejects" injected: replan, approval, Andina confirms 144 | 5:39 | 10x on waiting stretches only |
 | [demo-groq.mp4](docs/demo/demo-groq.mp4) (0:47) | Groq `qwen/qwen3.8-27b`, live | `s1_overstock`: MODIFY 240, auto-approved, confirmed | 2:33 | 10x on waiting stretches only |
 
+**Why the live models skipped some reads: the code's evidence checklist only requires inventory, forecast and open
+POs before deciding. Supplier terms, budget and storage are not required by the code, so both live models skipped
+them.** Both live runs still reached the correct result (Gemini: replan to Andina 144; Groq: MODIFY 240). The
+decision stayed safe because `generate_options` applies MOQ, budget, storage and cover in code, as the decision card
+shows. Under the eval's information dimension these runs would fail, consistent with the real-model results table.
+
 External video link: _to be added_
 
 The videos are recorded from the real UI and API by [`scripts/record_demo.py`](scripts/record_demo.py) (Playwright,
@@ -483,6 +489,8 @@ The brief lists optional buyer problems. These are already handled by the same a
   - forecasts are assumed not promo-aware ([D13](docs/decisions.md));
   - one SKU per decision.
 - **UI is functional, not polished.** It polls every 1.5 s instead of streaming, and has no authentication or roles.
+- **The evidence checklist is too lenient.** Add supplier terms, budget and storage (and `list_alternate_suppliers`
+  on replan) to the code's evidence checklist, so the agent cannot decide without reading them.
 
 **What production would change:**
 
