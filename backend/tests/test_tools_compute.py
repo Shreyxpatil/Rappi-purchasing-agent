@@ -93,3 +93,34 @@ def test_build_decision_from_tool_state(tool_ctx) -> None:
     d = build_decision(stale, None, investigate=True, information_needed=["fresh cycle count"])
     assert d.outcome == "INVESTIGATE" and d.information_needed[0] == "fresh cycle count"
     assert any(f.name == "stock count sensitivity" and f.effect.startswith("decision flips") for f in d.factors)
+
+
+def test_projecting_an_option_after_it_was_submitted_does_not_count_it_twice(tool_ctx) -> None:
+    ctx = tool_ctx("s1_overstock")
+    ns = {"node": "BOG-01", "sku": "LECHE-ALQ-1L"}
+    _ok("generate_options", ns, ctx)
+    ctx.state.decision = build_decision(ctx, "BUY:SUP-ALQ:240", False, []).model_dump(mode="json")
+    expected = [100, 40, 100, 280, 220]
+    assert _ok("project_inventory", {**ns, "option_id": "BUY:SUP-ALQ:240"}, ctx)["projection"]["end_levels"] == expected
+    draft = _ok("create_po_draft", {**ns, "supplier_id": "SUP-ALQ", "deliveries": [{"day": 3, "qty": 240}],
+                                    "idempotency_key": "c"}, ctx)
+    _ok("submit_po", {"po_id": draft["po_id"], "idempotency_key": "s"}, ctx)
+    after = _ok("project_inventory", {**ns, "option_id": "BUY:SUP-ALQ:240"}, ctx)
+    assert after["projection"]["end_levels"] == expected  # was [100, 40, 100, 520, 460]
+    assert _ok("project_inventory", ns, ctx)["projection"]["end_levels"] == expected  # the PO is now inbound
+
+
+def test_projecting_an_increase_counts_only_the_unconfirmed_part(tool_ctx) -> None:
+    from app.models import POLine
+
+    ctx = tool_ctx("s3_real_surge")
+    ns = {"node": "CDMX-02", "sku": "AGUA-CIEL-1L", "demand_basis": "recent_run_rate"}
+    _ok("generate_options", ns, ctx)
+    ctx.state.decision = build_decision(ctx, "INCREASE:PO-3001:108", False, []).model_dump(mode="json")
+    before = _ok("project_inventory", {**ns, "option_id": "INCREASE:PO-3001:108"}, ctx)["projection"]["end_levels"]
+    _ok("update_po_line", {"po_id": "PO-3001", "sku": "AGUA-CIEL-1L", "new_qty": 308, "reason": "surge",
+                           "idempotency_key": "i"}, ctx)
+    assert _ok("project_inventory", {**ns, "option_id": "INCREASE:PO-3001:108"}, ctx)["projection"]["end_levels"] == before
+    line = ctx.session.query(POLine).filter_by(po_id="PO-3001").one()
+    line.qty_confirmed = 308  # the supplier confirms the change
+    assert _ok("project_inventory", {**ns, "option_id": "INCREASE:PO-3001:108"}, ctx)["projection"]["end_levels"] == before

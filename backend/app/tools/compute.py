@@ -31,7 +31,10 @@ from app.engine.types import (
     ValidationResult,
 )
 from app.engine.validation import validate_po
-from app.models import OPEN_PO_STATUSES, Recommendation as RecommendationRow
+from sqlalchemy import select
+
+from app.models import OPEN_PO_STATUSES, AuditLog, PurchaseOrder, StockTransfer
+from app.models import Recommendation as RecommendationRow
 from app.tools import data
 from app.tools.registry import Args, ToolContext, ToolError, tool
 
@@ -202,15 +205,45 @@ class ProjectOut(BaseModel):
       "Day-by-day stock projection with existing inbound plus an option's deliveries or hypothetical receipts.")
 def project_inventory(ctx: ToolContext, args: ProjectArgs) -> ProjectOut:
     pc = plan_context(ctx, args.node, args.sku, None, args.demand_basis)
+    receipts = list(pc.existing_receipts)
     extra = [Receipt(day=d.day, qty=d.qty, source="hypothetical") for d in args.hypothetical]
     if args.option_id:
         opt = next((o for o in current_options(ctx).options if o.id == args.option_id), None)
         if opt is None:
             raise ToolError("UNKNOWN_OPTION", f"no option {args.option_id}", {"known": _option_ids(ctx)})
-        extra += [Receipt(day=d.day, qty=d.qty, source=opt.id) for d in opt.deliveries]
+        receipts, option_receipts = _without_executed(ctx, opt, receipts, args.sku)
+        extra += option_receipts
     days = args.days or pc.horizon
     return ProjectOut(demand_basis=args.demand_basis, horizon=pc.horizon, safety_stock=pc.safety_stock,
-                      projection=engine_project(pc.available, pc.forecast, pc.existing_receipts + extra, days))
+                      projection=engine_project(pc.available, pc.forecast, receipts + extra, days))
+
+
+def _without_executed(ctx: ToolContext, opt, receipts: list[Receipt], sku: str) -> tuple[list[Receipt], list[Receipt]]:
+    """Projecting "with this option" must count it exactly once, also after it was executed.
+
+    Inbound already holds whatever this run put on record (a submitted PO, a planned transfer), so those
+    receipts are taken out and the option's deliveries are added back once. An increase of an existing PO
+    adds only the part the supplier has not confirmed yet.
+    """
+    option_receipts = [Receipt(day=d.day, qty=d.qty, source=opt.id) for d in opt.deliveries]
+    if opt.kind == "PURCHASE" and opt.po_id:
+        line = next((l for _, l in data.open_po_lines(ctx.session, ctx.state.trigger["node"], sku,
+                                                      statuses=OPEN_PO_STATUSES) if l.po_id == opt.po_id), None)
+        executed = ctx.run_id is not None and ctx.session.scalars(select(AuditLog).filter_by(
+            run_id=ctx.run_id, action="INCREASE_PO_LINE", entity_id=opt.po_id)).first() is not None
+        if executed and line is not None:
+            pending = line.qty_ordered - (line.qty_confirmed if line.qty_confirmed is not None else line.qty_ordered)
+            # an increase is a single delivery on the existing line's arrival day
+            option_receipts = [Receipt(day=opt.deliveries[0].day, qty=pending, source=opt.id)] if pending > 0 else []
+        return receipts, option_receipts
+    mine = set()
+    if ctx.run_id is not None:
+        if opt.kind == "PURCHASE":
+            mine = {po.id for po in ctx.session.scalars(select(PurchaseOrder).filter_by(
+                run_id=ctx.run_id, supplier_id=opt.supplier_id))}
+        elif opt.kind == "TRANSFER":
+            mine = {t.id for t in ctx.session.scalars(select(StockTransfer).filter_by(run_id=ctx.run_id))}
+    return [r for r in receipts if r.source not in mine], option_receipts
 
 
 class ConstraintArgs(BasisArgs):
