@@ -9,7 +9,7 @@ Every action:
 
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from app.engine.constraints import evaluate_constraints
@@ -359,7 +359,7 @@ class TransferArgs(ActArgs):
     from_node: str
     to_node: str
     sku: str
-    qty: int
+    qty: int = Field(gt=0, le=100_000)
 
 
 @tool("create_transfer", "act", "Plan a stock transfer between nodes in the same city for the decided option.")

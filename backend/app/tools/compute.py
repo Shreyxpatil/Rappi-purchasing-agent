@@ -6,7 +6,7 @@ project); the engine does every calculation.
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.engine import decision as engine_decision
 from app.engine.demand import apply_promotions, detect_demand_shift, run_rate_forecast
@@ -52,8 +52,8 @@ class BasisArgs(NodeSku):
 
 
 class DeliveryArg(Args):
-    day: int
-    qty: int
+    day: int = Field(ge=0, le=60, description="days from today")
+    qty: int = Field(gt=0, le=100_000)
 
 
 # --------------------------------------------------------------------------- shared assembly
@@ -191,7 +191,7 @@ def detect_demand_shift_tool(ctx: ToolContext, args: NodeSku) -> DemandSignal:
 class ProjectArgs(BasisArgs):
     option_id: str | None = None  # project a generated option
     hypothetical: list[DeliveryArg] = []  # or what-if receipts
-    days: int | None = None  # default: the horizon
+    days: int | None = Field(None, ge=1, le=FORECAST_DAYS, description="default: the horizon")
 
 
 class ProjectOut(BaseModel):

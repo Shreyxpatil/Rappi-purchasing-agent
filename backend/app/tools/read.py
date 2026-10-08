@@ -7,7 +7,7 @@ to report, never instructions to follow (decision D3).
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.models import OPEN_PO_STATUSES, POEvent, Promotion, SalesDaily, Supplier, SupplierProduct
@@ -86,7 +86,7 @@ def get_inventory_other_nodes(ctx: ToolContext, args: NodeSku) -> OtherNodesOut:
 
 
 class SalesArgs(NodeSku):
-    days: int = 28
+    days: int = Field(28, ge=1, le=90)
 
 
 class SalesOut(BaseModel):
@@ -111,7 +111,7 @@ def get_sales_history(ctx: ToolContext, args: SalesArgs) -> SalesOut:
 
 
 class ForecastArgs(NodeSku):
-    days: int = 14
+    days: int = Field(14, ge=1, le=60)
 
 
 class ForecastOut(BaseModel):

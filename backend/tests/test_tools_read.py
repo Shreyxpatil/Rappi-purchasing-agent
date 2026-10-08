@@ -89,3 +89,24 @@ def test_every_tool_exports_a_compact_json_schema() -> None:
         schema = tool_schema(t)
         text = json.dumps(schema)
         assert '"title"' not in text and schema["parameters"]["type"] == "object"
+
+
+def test_out_of_range_arguments_are_schema_errors_not_crashes(tool_ctx) -> None:
+    ctx = tool_ctx("s1_overstock")
+    ns = {"node": "BOG-01", "sku": "LECHE-ALQ-1L"}
+    for name, args in [("get_forecast", {**ns, "days": 0}), ("get_sales_history", {**ns, "days": -5}),
+                       ("evaluate_constraints", {**ns, "supplier_id": "SUP-ALQ", "deliveries": [{"day": -1, "qty": 240}]}),
+                       ("project_inventory", {**ns, "days": 0})]:
+        r = call_tool(name, args, ctx)
+        assert r.error["code"] == "INVALID_ARGUMENTS", (name, r.error)
+
+
+def test_an_unexpected_tool_exception_becomes_an_internal_error(tool_ctx, monkeypatch) -> None:
+    from app.tools import REGISTRY
+
+    tool = REGISTRY["get_inventory"]
+    monkeypatch.setitem(REGISTRY, "get_inventory", tool.__class__(name=tool.name, kind=tool.kind,
+                        description=tool.description, args_model=tool.args_model,
+                        fn=lambda ctx, args: 1 / 0))
+    r = call_tool("get_inventory", {"node": "BOG-01", "sku": "LECHE-ALQ-1L"}, tool_ctx("s1_overstock"))
+    assert not r.ok and r.error["code"] == "INTERNAL_ERROR" and "ZeroDivisionError" in r.error["message"]

@@ -1,6 +1,7 @@
 """Tool registry: one place that validates arguments, runs the tool, and turns every failure
 into a structured, machine-readable error the agent can react to."""
 
+import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -14,6 +15,7 @@ from app.engine.types import EngineInputError
 from app.policy import Policy
 
 ToolKind = Literal["read", "compute", "act"]
+log = logging.getLogger("app.tools")
 
 
 class ToolError(Exception):
@@ -108,6 +110,10 @@ def call_tool(name: str, raw_args: dict[str, Any] | None, ctx: ToolContext) -> T
         return done(ok=False, error={"code": e.code, "message": e.message, "details": e.details})
     except EngineInputError as e:
         return done(ok=False, error={"code": e.code, "message": str(e), "details": {}})
+    except Exception as e:  # a bug in a tool must reach the model as an error, never crash the run
+        log.exception("tool %s raised", name)
+        return done(ok=False, error={"code": "INTERNAL_ERROR", "message": f"{type(e).__name__}: {e}"[:300],
+                                     "details": {}})
     return done(ok=True, output=out.model_dump(mode="json") if isinstance(out, BaseModel) else out)
 
 
