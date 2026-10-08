@@ -1,5 +1,6 @@
 """HTTP API for the UI: scenarios, runs (with their full step trace), approvals and purchase orders."""
 
+import json
 import logging
 from typing import Any, Literal
 
@@ -11,8 +12,12 @@ from sqlalchemy.orm import Session
 from app import runner
 from app.fixtures import SupplierResponse, list_fixtures
 from app.llm.base import LLMError
+from app.config import REPO_ROOT
 from app.llm.scripted import SCRIPTS_DIR
 from app.models import AgentRun, Approval, PurchaseOrder, StockTransfer, Workspace
+from app.seed import CATALOG_PATH
+
+RESULTS_DIR = REPO_ROOT / "evals" / "results"
 
 router = APIRouter(prefix="/api")
 log = logging.getLogger(__name__)
@@ -28,8 +33,12 @@ def get_session(request: Request):
 
 @router.get("/scenarios")
 def scenarios() -> list[dict[str, Any]]:
+    catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+    primary = {t["sku"]: t["supplier_id"] for t in catalog["supplier_products"] if t["is_primary"]}
     return [{"id": f.id, "scenario": f.scenario, "title": f.title, "description": f.description,
-             "trigger": f.trigger.model_dump(), "scripted": (SCRIPTS_DIR / f"{f.id}.json").exists()}
+             "trigger": f.trigger.model_dump(), "primary_supplier": primary.get(f.trigger.sku),
+             "expected": {"outcome": f.expected.outcome, "qty_min": f.expected.qty_min, "qty_max": f.expected.qty_max},
+             "scripted": (SCRIPTS_DIR / f"{f.id}.json").exists()}
             for f in list_fixtures()]
 
 
@@ -82,7 +91,26 @@ def get_run(run_id: int, s: Session = Depends(get_session)) -> dict[str, Any]:
             "steps": [{"seq": st.seq, "state": st.state, "kind": st.kind, "name": st.name, "input": st.input,
                        "output": st.output, "ok": st.ok, "latency_ms": st.latency_ms, "tokens_in": st.tokens_in,
                        "tokens_out": st.tokens_out} for st in run.steps],
-            "approvals": [_approval(a) for a in approvals]}
+            "approvals": [_approval(a) for a in approvals], "projection": _projection(run)}
+
+
+def _projection(run: AgentRun) -> dict[str, Any] | None:
+    """Inventory over the horizon: doing nothing vs the chosen option (engine predictions) vs what was
+    confirmed (the outcome check). Lets the UI show the effect of the decision at a glance."""
+    state = (run.context or {}).get("state", {})
+    options = (state.get("options") or {}).get("options", [])
+    chosen_id = (run.decision or {}).get("option_id")
+    chosen = next((o for o in options if o["id"] == chosen_id), None)
+    baseline = next((o for o in options if o["kind"] in ("NO_ACTION", "ACCEPT_PARTIAL")), None)
+    verified = [st for st in run.steps if st.kind == "verification"]
+    if not options and not verified:
+        return None
+    ref = (state.get("options") or {}).get("reference") or {}
+    return {"safety_stock": ref.get("safety_stock"),
+            "do_nothing": baseline["projection"] if baseline else None,
+            "chosen": chosen["projection"] if chosen else None,
+            "chosen_label": chosen["label"] if chosen else None,
+            "confirmed": verified[-1].output.get("actual_end_levels") if verified else None}
 
 
 def _run_summary(r: AgentRun) -> dict[str, Any]:
@@ -147,6 +175,18 @@ def purchase_orders(s: Session = Depends(get_session)) -> dict[str, Any]:
         "transfers": [{"id": t.id, "from": t.from_node_id, "to": t.to_node_id, "sku": t.sku, "qty": t.qty,
                        "expected_arrival": t.expected_arrival, "status": t.status} for t in transfers],
     }
+
+
+@router.get("/evals")
+def evals() -> list[dict[str, Any]]:
+    """Stored eval results per provider (written by evals/run_evals.py)."""
+    if not RESULTS_DIR.exists():
+        return []
+    out = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(RESULTS_DIR.glob("*.json"))]
+    for res in out:
+        for r in res["runs"]:
+            r.pop("narrative", None)  # keep the payload small; narratives are on the runs themselves
+    return out
 
 
 def _in_new_session(request: Request, fn, *args) -> None:

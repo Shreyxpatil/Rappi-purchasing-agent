@@ -80,3 +80,20 @@ def test_cli_runs_a_case_and_answers_approvals_from_the_fixture() -> None:
     assert (run.status, run.decision["quantity"]) == ("COMPLETED", 714)
     session, run = run_case("s4_budget_override_rejected")  # ["REJECT"]: falls back to 342
     assert (run.status, run.decision["quantity"], run.replan_count) == ("COMPLETED", 342, 1)
+
+
+def test_run_detail_includes_projection_for_the_chart(client) -> None:
+    run_id = client.post("/api/runs", json={"scenario_id": "s1_overstock"}).json()["run_id"]
+    proj = client.get(f"/api/runs/{run_id}").json()["projection"]
+    assert proj["do_nothing"] == [100, 40, 100, 40, -20]
+    assert proj["chosen"] == proj["confirmed"] == [100, 40, 100, 280, 220]
+    assert proj["safety_stock"] == 120 and proj["chosen_label"].startswith("Buy 240 from SUP-ALQ")
+
+
+def test_scenarios_carry_primary_supplier_and_eval_results_are_served(client) -> None:
+    rows = {r["id"]: r for r in client.get("/api/scenarios").json()}
+    assert rows["s1_overstock"]["primary_supplier"] == "SUP-ALQ"
+    assert rows["s1_overstock"]["expected"] == {"outcome": "MODIFY", "qty_min": 240, "qty_max": 240}
+    evals = client.get("/api/evals").json()
+    scripted = next(e for e in evals if e["provider"] == "scripted")
+    assert len(scripted["runs"]) == 51 and "narrative" not in scripted["runs"][0]
