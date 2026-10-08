@@ -364,40 +364,43 @@ provider in [`evals/report.md`](evals/report.md).
 
 > Video walkthrough: _link to be added_
 
-Start the API (`make run`, or `docker compose up --build`) and open `http://localhost:8000/docs`, or use `make demo`
-in a terminal.
+**Quick path (no key, about 1 s per run):** `docker compose up --build`, or `make run` after `cd frontend && npm install
+&& npm run build`. Open **http://localhost:8000** and keep the provider on **scripted**. Every scenario below replays a
+recorded agent trajectory through the real engine, gate, database and feedback loop. To watch a model decide live,
+switch the provider to Gemini or Groq (about 2–4 min per run on free tiers).
 
-**1. Scenario 1: the recommendation is wrong (`s1_overstock`).**
-`POST /api/runs {"scenario_id": "s1_overstock"}`, then `GET /api/runs/1`:
-- the trace shows the reads, the own requirement (net 140 → MOQ 240) and the ranked options;
-- the 800 fails with `CASE_PACK_MISMATCH`, `STORAGE_EXCEEDED`, `BUDGET_EXCEEDED` and `OVERSTOCK`;
-- the decision is **MODIFY 240** and the gate says **AUTO** (1,008,000 COP is under the 3,000,000 limit);
-- `PO-9001` is submitted, the post-action diff passes, the supplier confirms, and the outcome check matches the
-  prediction `[100, 40, 100, 280, 220]`.
+**1. A wrong recommendation (`s1_overstock`).** *Scenarios* tab → S1 → "Recommendation of 800 would overstock" → **Run**.
 
-**2. Scenario 2: the supplier ships 250 of 500 and that is not enough (`s2_partial_needs_alternate`).**
-The agent first checks whether 250 is enough. It isn't: stockout on day 4. It then compares the options:
-- Lala's backorder lands on day 6, too late;
-- Polanco can spare only 10;
-- Central de Abasto can supply 204 at +5.66%.
+The run page opens and follows the agent live.
+- **Timeline:** the reads, `calculate_net_requirement` (net 140 → MOQ 240), `generate_options`, then the policy gate
+  (**AUTO**), the PO, the post-action diff, the supplier's CONFIRMED and the outcome check. Click any step to see
+  its input and output.
+- **Decision card:** **MODIFY 240**, high confidence. The recommendation-as-is checks show CASE_PACK, STORAGE and
+  BUDGET failing and COVER warning, and the grounded explanation sits underneath.
+- **Chart:** doing nothing dips below zero on day 4; the chosen option and the confirmed outcome overlap.
+- **Purchase orders** tab: `PO-9001`, CREATED → SUBMITTED → CONFIRMED.
 
-The gate requires approval (`ALTERNATE_SUPPLIER`, `PRICE_VARIANCE`), so the run pauses. `GET /api/approvals` shows
-the request with the next-best alternative beside it. Approve it with `POST /api/approvals/{id} {"approve": true}`.
-The run resumes, acknowledges Lala's partial, the supplier confirms, and the outcome check passes.
+**2. Supplier failure, replan and approval (`x_supplier_rejects`).** Run it from *Recovery & safety*.
+- **Rejection:** Alquería **rejects** the PO. The timeline shows the supplier step in red, the outcome check
+  failing with `SUPPLIER_REJECTED`, and **REPLAN 1**.
+- **Replan:** the agent regenerates the options without Alquería and picks Andina (144 units, +3.57%). The banner
+  says the gate needs a human.
+- **Approval:** in the *Approvals* tab the request shows `ALTERNATE_SUPPLIER`. **Approve** it; the run resumes, the
+  supplier confirms and the outcome check passes.
+- **Purchase orders:** one REJECTED PO from Alquería and one CONFIRMED PO from Andina, each with its full history.
+- **Live failure (real provider):** with Gemini or Groq, run `s1_overstock` with **"Supplier rejects"** selected.
+  The model has to replan live.
 
-**3. Injected supplier failure and recovery (`x_supplier_rejects`).**
-1. The correct recommendation (240) is accepted and submitted, and **Alquería rejects it**.
-2. VERIFY_OUTCOME records `SUPPLIER_REJECTED`, excludes Alquería, and its reliability drops from 0.95 to 0.76.
-3. **REPLAN 1**: the model regenerates options; the recommendation is now blocked (`SUPPLIER_EXCLUDED`) and it
-   picks the cheapest alternate (Andina, 144, +3.57%).
-4. Approval, then supplier confirmation, then the outcome check passes.
+**3. Budget override, both answers (`s4_budget_binding`, then `s4_budget_override_rejected`).** The approval shows
+the two options side by side:
+- **714 units:** 4,141,200 COP, 2,141,200 over budget, no stockout;
+- **342 units:** within budget, stockout on day 7 with 128 units unmet.
 
-With a real provider, inject any failure into any scenario (see *Injecting a supplier failure*).
+**Approve** on `s4_budget_binding`: 714 is ordered and confirmed. **Reject** on `s4_budget_override_rejected`: the
+agent replans to 342, executes it, and the decision card shows the accepted **residual risk** (stockout day 7).
 
-**4. Budget override, both answers (`s4_budget_binding`, `s4_budget_override_rejected`).**
-The approval shows **714 units, 2,141,200 COP over budget, no stockout** next to **342 units, within budget,
-stockout on day 7 (128 unmet)**. Approve, and 714 is bought. Reject, and the agent replans to 342 and reports the
-accepted risk.
+**4. Evaluations.** The *Evaluations* tab shows scripted results (51/51 runs, every dimension at 100%), any real-model
+results per provider, the case × dimension matrix, and each failure with its grader detail and root cause.
 
 ## Beyond the scenarios
 
@@ -416,18 +419,42 @@ The brief lists optional buyer problems. These are already handled by the same a
 
 ## Limitations & Next Steps
 
-- **Real-model evals are small:** free-tier quotas allow one run per case on a four-case subset per provider. That
-  is enough to show where model judgement differs, not to estimate pass rates tightly. Use `--runs` and `--case`
-  for more.
-- **UI is functional, not polished:** it polls the API instead of streaming, has no auth, and in Docker only the API
-  is served for now (`make ui` for the UI).
-- **Supplier is a mock:** it answers synchronously when the run reaches AWAIT_SUPPLIER. A real integration would
-  answer asynchronously (webhook or EDI); the state machine already pauses and resumes, so that is a transport change.
-- **Single workspace:** loading a scenario replaces the domain data, and a paused run from another scenario is
-  marked `SUPERSEDED` ([D7](docs/decisions.md)).
+**What this is not (yet):**
+
+- **Free tiers shape the real-model numbers.**
+  - Groq's free tier allows 8,000 tokens/min and 200,000/day, and a run sends ~30k input tokens. So a run takes
+    ~4 minutes, and about six runs exhaust the day.
+  - Gemini's free tier is paced at 8 requests/min.
+  - Real-model evals are therefore one run per case on a four-case subset per provider: enough to show where
+    judgement differs, not to estimate pass rates.
+- **Real models vary run to run.** Gemini runs at its default temperature, as Google advises for Gemini 3
+  ([D24](docs/decisions.md)), and Groq/Qwen also varies. The same case can pass once and miss once (for example,
+  Qwen escalating instead of buying). The engine, gate and validation keep every outcome safe, but the *judgement*
+  score needs many runs.
+- **The judge is not independent.** Explanation quality is scored by Gemini, which is also an evaluated provider, so
+  its scores on Gemini runs may be biased.
+- **SQLite and a single workspace.** One file database, with one scenario loaded at a time. Loading another scenario
+  supersedes a run waiting for approval ([D7](docs/decisions.md)). There's no concurrency control beyond that, which is
+  fine for a demo and not for several buyers.
+- **The supplier is a mock.** It answers when the run reaches AWAIT_SUPPLIER. A real integration answers
+  asynchronously (EDI, webhook, portal); the state machine already pauses and resumes, so that is a transport change.
 - **Model simplifications:**
-  - safety stock is days of cover (not z·σ);
+  - safety stock is days of cover, not a service-level z·σ formula;
   - storage assumes other SKUs stay flat ([D4](docs/decisions.md));
-  - forecasts are assumed not promo-aware ([D13](docs/decisions.md)).
-- **Free-tier throughput:** a run sends ~30k input tokens. Trimming tool outputs further would speed up Groq's
-  8k-tokens/min tier.
+  - forecasts are assumed not promo-aware ([D13](docs/decisions.md));
+  - one SKU per decision.
+- **UI is functional, not polished.** It polls every 1.5 s instead of streaming, and has no authentication or roles.
+
+**What production would change:**
+
+1. **Infrastructure:** Postgres with row-level locking, and a job queue (instead of in-process background tasks) so
+   runs survive restarts and scale out.
+2. **Integrations:** real data sources (WMS, ERP, forecast service) behind the same tool contracts, with freshness
+   SLAs, and supplier responses arriving as events.
+3. **Access control:** authentication and roles. Approvals belong to named category managers with limits per role,
+   all in the existing audit log.
+4. **Model operations:** a paid model tier without training-data use, and prompt caching for the static system
+   prompt and tool schemas (most of the ~30k tokens). Every prompt or model change re-runs the full real-model eval
+   with several runs per case.
+5. **Replenishment model:** service-level safety stock and multi-SKU baskets (shared MOQ, truck fill), and every
+   change re-checked against the hand-computed fixtures.
