@@ -1,0 +1,18 @@
+services:
+  api:
+    build: .
+    ports:
+      - "${API_PORT:-8000}:8000"   # API_PORT=8001 docker compose up, if 8000 is taken
+    env_file:
+      - path: .env          # optional: only needed for real providers (Gemini / Groq)
+        required: false
+    volumes:
+      - app-data:/app/data  # SQLite database survives restarts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  app-data: {}

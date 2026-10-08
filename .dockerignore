@@ -1,0 +1,13 @@
+.git
+.venv
+.env
+.env.*
+!.env.example
+data
+**/__pycache__
+.pytest_cache
+node_modules
+frontend/node_modules
+docs/assignment.pdf
+CLAUDE.md
+.claude
