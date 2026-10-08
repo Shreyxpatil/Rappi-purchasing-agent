@@ -150,3 +150,19 @@ def test_failed_and_escalated_runs_name_their_reason(client, monkeypatch) -> Non
     assert reasons[ok] == ("COMPLETED", None)
     assert reasons[failed] == ("FAILED", "RuntimeError")
     assert reasons[escalated] == ("ESCALATED", "INSUFFICIENT_DATA")
+
+
+def test_a_new_run_is_refused_while_another_is_running(client) -> None:
+    from app.models import AgentRun
+
+    with client.app.state.session_factory() as s:
+        s.add(AgentRun(scenario_id="s1_overstock", provider="gemini", trigger={}, status="RUNNING", state="INVESTIGATE",
+                       started_at=__import__("datetime").datetime(2026, 10, 7)))
+        s.commit()
+    r = client.post("/api/runs", json={"scenario_id": "s1_overstock"})
+    assert r.status_code == 409 and "still running" in r.json()["detail"]
+
+
+def test_scenario_id_is_never_used_as_a_path(client) -> None:
+    for bad in ("../evals/scenarios/s1_overstock.json", "s1_overstock.json", "/etc/passwd"):
+        assert client.post("/api/runs", json={"scenario_id": bad}).status_code == 404

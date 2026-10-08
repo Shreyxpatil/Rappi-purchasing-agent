@@ -62,12 +62,15 @@ class StartRun(BaseModel):
 @router.post("/runs", status_code=202)
 def start_run(body: StartRun, background: BackgroundTasks, request: Request,
               s: Session = Depends(get_session)) -> dict[str, Any]:
-    try:
-        behaviour = None if body.supplier_behaviour is None else {
-            k: [r.model_dump(exclude_none=True) for r in v] for k, v in body.supplier_behaviour.items()}
-        run = runner.prepare_run(s, body.scenario_id, body.provider, behaviour)
-    except FileNotFoundError:
+    if body.scenario_id not in {f.id for f in list_fixtures()}:  # never treat the id as a path
         raise HTTPException(404, f"unknown scenario {body.scenario_id}")
+    busy = s.scalars(select(AgentRun).filter_by(status="RUNNING")).first()
+    if busy is not None:  # seeding would wipe the data the running agent is working on
+        raise HTTPException(409, f"run {busy.id} ({busy.scenario_id}) is still running; wait for it to finish")
+    behaviour = None if body.supplier_behaviour is None else {
+        k: [r.model_dump(exclude_none=True) for r in v] for k, v in body.supplier_behaviour.items()}
+    try:
+        run = runner.prepare_run(s, body.scenario_id, body.provider, behaviour)
     except LLMError as e:
         raise HTTPException(400, {"code": e.code, "message": str(e)})
     background.add_task(_in_new_session, request, runner.execute_run, run.id)
