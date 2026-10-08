@@ -16,7 +16,9 @@ def test_s1_overstock_end_to_end(run_case) -> None:
     _, run, s, fx = run_case("s1_overstock")
     assert run.status == "COMPLETED"
     assert _transitions(run) == ["INTAKE->INVESTIGATE", "INVESTIGATE->DECIDE", "DECIDE->POLICY_GATE",
-                                 "POLICY_GATE->EXECUTE", "EXECUTE->REPORT", "REPORT->DONE"]
+                                 "POLICY_GATE->EXECUTE", "EXECUTE->VALIDATE", "VALIDATE->REPORT", "REPORT->DONE"]
+    diff = next(st for st in run.steps if st.kind == "validation")
+    assert diff.ok and all(c["ok"] for c in diff.output["checks"])
     assert (run.decision["outcome"], run.decision["quantity"]) == (fx.expected.outcome, fx.expected.qty_min)
     po = s.scalars(select(PurchaseOrder).filter_by(run_id=run.id)).one()
     assert (po.supplier_id, po.status, po.lines[0].qty_ordered) == ("SUP-ALQ", "SUBMITTED", 240)

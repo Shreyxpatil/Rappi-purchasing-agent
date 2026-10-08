@@ -20,6 +20,7 @@ from app.agent import prompts
 from app.agent.narrative import template_narrative, ungrounded_numbers
 from app.agent.control import CONTROL_TOOLS, FinishExecutionArgs, ProposeDecisionArgs
 from app.agent.persistence import Recorder, load_context
+from app.agent.validation import diff_against_intent
 from app.agent.states import ALLOWED_TOOLS, MAX_TURNS, REQUIRED_EVIDENCE, RunStatus, State
 from app.clock import clock_for
 from app.engine.quality import data_blocks_decision
@@ -68,7 +69,8 @@ class PurchasingAgent:
         """Advance until the run finishes or pauses for a human."""
         r = self._load(run)
         handlers = {State.INTAKE: self._intake, State.INVESTIGATE: self._investigate, State.DECIDE: self._decide,
-                    State.POLICY_GATE: self._policy_gate, State.EXECUTE: self._execute, State.REPORT: self._report}
+                    State.POLICY_GATE: self._policy_gate, State.EXECUTE: self._execute,
+                    State.VALIDATE: self._validate, State.REPORT: self._report}
         while run.status == RunStatus.RUNNING and r.state != State.DONE:
             handlers[r.state](r)
             if r.extra.get("invalid_calls", 0) >= MAX_CONSECUTIVE_MALFORMED and r.state in MAX_TURNS:
@@ -174,6 +176,20 @@ class PurchasingAgent:
                     r.ctx.state.escalated = True
                     r.rec.transition(State.REPORT, "gate escalated")
 
+    def _validate(self, r: _Run) -> None:
+        """Layer 2: the database, read back, must match the decided option field by field."""
+        start = time.perf_counter()
+        checks = diff_against_intent(self.session, r.ctx.clock, r.run.id, decided_option(r.ctx), r.ctx.state.trigger)
+        failed = [c for c in checks if not c["ok"]]
+        r.rec.step("validation", "post_action_diff", {"option_id": r.ctx.state.decision["option_id"]},
+                   {"checks": checks}, ok=not failed, latency_ms=int((time.perf_counter() - start) * 1000))
+        if failed:
+            self._escalate(r, "POST_ACTION_MISMATCH", "the database does not match the decision",
+                           [f"{c['check']}: intended {c['intended']}, found {c['actual']}" for c in failed])
+            r.rec.transition(State.REPORT, "post-action mismatch")
+            return
+        r.rec.transition(State.REPORT)
+
     def _report(self, r: _Run) -> None:
         d = r.ctx.state.decision
         if d is None:  # escalated before any decision (e.g. turn limit)
@@ -257,7 +273,7 @@ class PurchasingAgent:
                 self._escalate(r, "EXECUTION_INCOMPLETE", "decided option not fully executed", gaps)
                 r.extra["next_state"] = State.REPORT
             return _error("EXECUTION_INCOMPLETE", "the decided option is not fully executed", {"missing": gaps})
-        r.extra["next_state"] = State.REPORT
+        r.extra["next_state"] = State.VALIDATE
         return {"ok": True, "output": {"executed": True}}
 
     def _execution_gaps(self, r: _Run) -> list[str]:

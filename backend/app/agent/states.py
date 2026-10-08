@@ -1,8 +1,7 @@
 """States of a run and which tools the model may use in each.
 
-INTAKE -> INVESTIGATE -> DECIDE -> POLICY_GATE -> EXECUTE -> REPORT -> DONE
+INTAKE -> INVESTIGATE -> DECIDE -> POLICY_GATE -> EXECUTE -> VALIDATE -> ... -> REPORT -> DONE
 Code owns every transition; the model only works inside INVESTIGATE, EXECUTE and REPORT.
-(Supplier response, outcome verification and replanning after a supplier failure arrive in P5.)
 """
 
 from enum import StrEnum
@@ -16,6 +15,7 @@ class State(StrEnum):
     DECIDE = "DECIDE"
     POLICY_GATE = "POLICY_GATE"
     EXECUTE = "EXECUTE"
+    VALIDATE = "VALIDATE"  # post-action: database read back and diffed against the decision
     REPORT = "REPORT"
     DONE = "DONE"
 
