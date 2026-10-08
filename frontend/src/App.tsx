@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { api, type RunSummary } from './api'
 import Launcher from './pages/Launcher'
+import Approvals from './pages/Approvals'
+import PurchaseOrders from './pages/PurchaseOrders'
 import RunView from './pages/RunView'
 import { Badge, Card, statusTone } from './ui'
 
@@ -43,7 +45,9 @@ export default function App() {
       <main className="mx-auto max-w-7xl px-4 py-6">
         {page === 'launch' && <Launcher onOpenRun={openRun} />}
         {page === 'run' && (runId ? <RunView runId={runId} onApprovals={() => setPage('approvals')} /> : <RunList onOpenRun={openRun} />)}
-        {page !== 'launch' && page !== 'run' && <p className="text-sm text-slate-500">Coming next.</p>}
+        {page === 'approvals' && <Approvals onOpenRun={openRun} />}
+        {page === 'pos' && <PurchaseOrders onOpenRun={openRun} />}
+        {page === 'evals' && <p className="text-sm text-slate-500">Coming next.</p>}
       </main>
     </div>
   )
