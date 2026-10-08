@@ -58,5 +58,7 @@ REQUIRED_EVIDENCE: dict[str, set[str]] = {
 # storage) must also be evidence the agent has looked at. INVESTIGATE decisions are exempt.
 ACTION_EVIDENCE: set[str] = {"get_supplier_terms", "get_budget", "get_storage_capacity"}
 ACTION_KINDS = {"PURCHASE", "TRANSFER"}
+# After a replan excludes a supplier, the next decision needs a fresh look at who else can supply.
+ALTERNATES_EVIDENCE = "list_alternate_suppliers"
 
 MAX_TURNS = {State.INVESTIGATE: 12, State.EXECUTE: 8}

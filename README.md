@@ -314,7 +314,8 @@ On top of the four layers:
 
 - **Decision checks before acting.**
   - `propose_decision` is refused without the evidence checklist for the trigger, and before a purchase or
-    transfer also without supplier terms, budget and storage (`MISSING_EVIDENCE`, listing the missing reads).
+    transfer also without supplier terms, budget and storage; after a replan excludes a supplier, also without a
+    fresh `list_alternate_suppliers` (`MISSING_EVIDENCE`, listing the missing reads).
   - It is refused when stale data changes the answer (`DATA_BLOCKS_DECISION`).
   - It is refused for an option that breaks a hard constraint (`OPTION_BLOCKED`).
   - Malformed tool calls get one correction, then the step fails ([D23](docs/decisions.md)).

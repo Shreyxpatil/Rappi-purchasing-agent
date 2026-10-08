@@ -118,6 +118,20 @@ def test_investigating_needs_only_the_base_evidence(run_case) -> None:
     assert step.ok and run.decision["outcome"] == "INVESTIGATE"
 
 
+def test_a_replan_that_excludes_a_supplier_needs_a_fresh_alternates_read(run_case) -> None:
+    turns = script_turns("x_supplier_rejects")
+    turns[0]["tool_calls"].append({"name": "list_alternate_suppliers", "args": {"sku": "LECHE-ALQ-1L"}})  # before
+    turns[6]["tool_calls"] = [c for c in turns[6]["tool_calls"] if c["name"] != "list_alternate_suppliers"]
+    turns.insert(8, {"tool_calls": [{"name": "list_alternate_suppliers", "args": {"sku": "LECHE-ALQ-1L"}}]})
+    turns.insert(9, turns[7])  # the same decision again, now with the read done
+    agent, run, s, _ = run_case("x_supplier_rejects", turns)
+    _approve_all(agent, run, s)
+    proposals = [st for st in run.steps if st.name == "propose_decision"]
+    assert [p.ok for p in proposals] == [True, False, True]
+    assert proposals[1].output["error"]["details"]["missing"] == ["list_alternate_suppliers"]
+    assert (run.status, run.decision["quantity"]) == ("COMPLETED", 144)
+
+
 def test_action_tools_are_not_available_while_investigating(run_case) -> None:
     turns = [{"tool_calls": [{"name": "create_po_draft", "args": {"node": "BOG-01", "sku": "LECHE-ALQ-1L",
               "supplier_id": "SUP-ALQ", "deliveries": [{"day": 3, "qty": 10000}], "idempotency_key": "x"}}]}]

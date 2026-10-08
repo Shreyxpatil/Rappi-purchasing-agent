@@ -22,7 +22,8 @@ from app.agent.narrative import template_narrative, ungrounded_numbers
 from app.agent.control import CONTROL_TOOLS, FinishExecutionArgs, ProposeDecisionArgs
 from app.agent.persistence import Recorder, load_context
 from app.agent.validation import diff_against_intent
-from app.agent.states import ACTION_EVIDENCE, ACTION_KINDS, ALLOWED_TOOLS, MAX_TURNS, REQUIRED_EVIDENCE, RunStatus, State
+from app.agent.states import (ACTION_EVIDENCE, ACTION_KINDS, ALLOWED_TOOLS, ALTERNATES_EVIDENCE, MAX_TURNS,
+                              REQUIRED_EVIDENCE, RunStatus, State)
 from app.clock import clock_for
 from app.config import get_settings
 from app.engine.quality import data_blocks_decision
@@ -373,7 +374,7 @@ class PurchasingAgent:
 
     def _missing_evidence(self, r: _Run, args: ProposeDecisionArgs) -> set[str]:
         """Reads the decision still needs. Always the trigger's checklist; for a purchase or transfer also
-        supplier terms, budget and storage."""
+        supplier terms, budget and storage; after a supplier was excluded, the alternate suppliers too."""
         have = set(r.extra["evidence"])
         missing = REQUIRED_EVIDENCE[r.ctx.state.trigger["type"]] - have
         if args.investigate:
@@ -381,6 +382,8 @@ class PurchasingAgent:
         option = next((o for o in (r.ctx.state.options or {}).get("options", []) if o["id"] == args.option_id), None)
         if option is not None and option["kind"] in ACTION_KINDS:
             missing |= ACTION_EVIDENCE - have
+        if r.extra.get("alternates_required") and ALTERNATES_EVIDENCE not in have:
+            missing.add(ALTERNATES_EVIDENCE)
         return missing
 
     def _finish(self, r: _Run, call: ToolCall) -> dict[str, Any]:
@@ -458,13 +461,18 @@ class PurchasingAgent:
             r.rec.transition(State.REPORT, "max replans")
             return
         excluded = ", ".join(r.ctx.state.excluded_suppliers) or "none"
+        alternates = "Call list_alternate_suppliers and generate_options" if r.extra.get("alternates_required") \
+            else "Call generate_options"
         r.messages.append(Message(role="user", content=(
             f"Replan {r.ctx.state.replans} of {self.policy.max_replans}: {reason}. Excluded suppliers: {excluded}. "
-            "Call generate_options again and propose a new decision.")))
+            f"{alternates} again and propose a new decision.")))
         r.rec.transition(State.INVESTIGATE, f"replan {r.ctx.state.replans}")
 
     def _exclude(self, r: _Run, supplier_id: str) -> None:
         r.ctx.state.excluded_suppliers = sorted({*r.ctx.state.excluded_suppliers, supplier_id})
+        # the next decision must look again at who else can supply, after this exclusion
+        r.extra["evidence"] = [e for e in r.extra.get("evidence", []) if e != ALTERNATES_EVIDENCE]
+        r.extra["alternates_required"] = True
 
     # ------------------------------------------------------------------ plumbing
 
