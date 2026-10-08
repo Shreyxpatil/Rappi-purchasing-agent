@@ -34,7 +34,10 @@ export default function App() {
             {NAV.map((n) => (
               <button
                 key={n.id}
-                onClick={() => setPage(n.id)}
+                onClick={() => {
+                  if (n.id === 'run') setRunId(null) // the Runs tab always opens the list
+                  setPage(n.id)
+                }}
                 className={`rounded px-3 py-1.5 text-sm ${page === n.id ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
               >
                 {n.label}

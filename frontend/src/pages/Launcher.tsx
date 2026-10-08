@@ -62,7 +62,7 @@ export default function Launcher({ onOpenRun }: { onOpenRun: (id: number) => voi
               </select>
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-slate-500">Inject a supplier failure</span>
+              <span className="text-slate-500">Inject a failure at the primary supplier</span>
               <select className="rounded border px-2 py-1" value={injection} onChange={(e) => setInjection(e.target.value)}>
                 {Object.keys(INJECTIONS).map((k) => <option key={k}>{k}</option>)}
               </select>

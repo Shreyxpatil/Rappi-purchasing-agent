@@ -21,7 +21,9 @@ export default function RunView({ runId, onApprovals }: { runId: number; onAppro
         const r = await api.run(runId)
         if (!alive) return
         setRun(r)
-        if (r.status === 'RUNNING') timer = setTimeout(load, 1500) // poll while the agent works
+        // poll while the agent works, and slower while it waits for a human (the inbox resumes it)
+        if (r.status === 'RUNNING') timer = setTimeout(load, 1500)
+        else if (r.status === 'AWAITING_APPROVAL') timer = setTimeout(load, 4000)
       } catch (e) {
         setError(String(e))
       }
