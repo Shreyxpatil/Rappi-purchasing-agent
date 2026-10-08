@@ -330,7 +330,7 @@
    ]
   },
   {
-   "text": "Escalated: every supplier for this milk rejected the order (Alquería for 240, then Andina, El Dorado and Makro for 144 each). Without stock, Chapinero runs out on day 4 with 20 units unmet. A buyer needs to find supply or approve a transfer."
+   "text": "Escalated: every supplier for this milk rejected the order (Alquería for 240, then Andina, El Dorado and Makro for 144 each) and the replan budget is spent. Without new stock Chapinero runs short from day 4. A buyer needs to find supply or approve a transfer."
   }
  ]
 }

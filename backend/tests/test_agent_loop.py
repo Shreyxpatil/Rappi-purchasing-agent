@@ -212,6 +212,7 @@ def test_replans_are_capped_then_escalated(run_case) -> None:
     _approve_all(agent, run, s)
     assert run.status == "ESCALATED" and run.replan_count == 4
     assert next(st for st in run.steps if st.kind == "escalation").name == "MAX_REPLANS_REACHED"
+    assert run.context["narrative_source"] == "model" and "replan budget is spent" in run.narrative
     pos = {p.supplier_id: p.status for p in s.scalars(select(PurchaseOrder).filter_by(run_id=run.id))}
     assert pos == {e.supplier: "REJECTED" for e in fx.expected.final_pos}
 

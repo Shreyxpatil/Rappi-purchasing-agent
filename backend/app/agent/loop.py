@@ -268,7 +268,7 @@ class PurchasingAgent:
             r.rec.transition(State.REPORT, "outcome as predicted")
 
     def _report(self, r: _Run) -> None:
-        d = r.ctx.state.decision
+        d = r.ctx.state.decision or r.run.decision  # after a spent replan budget, explain the last decision
         if d is None:  # escalated before any decision (e.g. turn limit)
             r.run.narrative = "Escalated before a decision was reached; see the trace."
         else:
