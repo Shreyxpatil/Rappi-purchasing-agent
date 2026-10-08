@@ -6,6 +6,7 @@ Approvals are answered from the fixture's approval_responses, as a buyer would.
 """
 
 import argparse
+import logging
 import time
 
 from sqlalchemy import select
@@ -41,8 +42,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("case")
     parser.add_argument("--provider", default="scripted", choices=["scripted", "gemini", "openai_compat"])
+    parser.add_argument("--verbose", action="store_true", help="log every model call (default: warnings only)")
     args = parser.parse_args()
-    configure_logging()
+    configure_logging(logging.INFO if args.verbose else logging.WARNING)
     start = time.perf_counter()
     session, run = run_case(args.case, args.provider)
     d = run.decision or {}

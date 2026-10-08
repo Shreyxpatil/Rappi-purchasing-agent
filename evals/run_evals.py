@@ -11,6 +11,7 @@ re-running a subset replaces only those cases. evals/report.md is regenerated fr
 
 import argparse
 import json
+import logging
 import sys
 import time
 from datetime import datetime, timezone
@@ -85,8 +86,9 @@ def main() -> None:
     p.add_argument("--case", action="append", help="repeatable; default: all (scripted) or the real-model subset")
     p.add_argument("--runs", type=int, help="runs per case (default: 3 scripted, 1 real)")
     p.add_argument("--judge", choices=["gemini", "openai_compat"], help="LLM judge for explanation quality")
+    p.add_argument("--verbose", action="store_true", help="log every model call (default: warnings only)")
     args = p.parse_args()
-    configure_logging()
+    configure_logging(logging.INFO if args.verbose else logging.WARNING)
 
     for provider in args.provider:
         cases = args.case or ([f.id for f in list_fixtures()] if provider == "scripted" else REAL_SUBSET)
