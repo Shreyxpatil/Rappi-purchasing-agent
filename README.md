@@ -198,6 +198,75 @@ Every significant choice, with alternatives considered, is in [`docs/decisions.m
 
 ## Agent Behaviour — design answers
 
+The brief leaves eight questions open. Short answers, each pointing at the code that implements it.
+
+**1. What information does the agent need?**
+
+- Stock (on hand, reserved, and when it was counted), the daily forecast, sales history with order sizes and
+  stockout flags, and open POs with *confirmed* quantities.
+- Supplier terms (cost, MOQ, case pack, lead time, reliability), budget per category and month, storage per
+  temperature zone, promotions, and stock at other nodes in the same city.
+- Every read carries freshness metadata.
+- Tools: [`tools/read.py`](backend/app/tools/read.py). Schema: [`models.py`](backend/app/models.py).
+
+**2. What tools or APIs should it use?**
+
+- 22 typed tools in three kinds:
+  - **10 read:** `get_inventory`, `get_open_pos`, `get_budget`, …
+  - **5 compute:** `calculate_net_requirement`, `project_inventory`, `detect_demand_shift`, `evaluate_constraints`,
+    `generate_options`.
+  - **7 action:** `create_po_draft`, `submit_po`, `update_po_line`, `cancel_po_line`, `create_transfer`,
+    `request_approval`, `escalate`.
+- Plus two control tools for the state machine: `propose_decision` and `finish_execution`.
+- Registry: [`tools/registry.py`](backend/app/tools/registry.py).
+
+**3. What data should exist?**
+
+- 21 tables: catalog, stock and demand, purchasing with a PO event history, constraints, and the agent's own trace
+  (`agent_runs`, `agent_steps`, `approvals`, `audit_log`, `idempotency_keys`).
+- Mock but realistic LatAm data: 4 dark stores, 5 SKUs, 9 suppliers ([`catalog.json`](backend/app/seed_data/catalog.json)),
+  plus one fixture per situation.
+
+**4. How should the agent interact with those tools?**
+
+- Through an explicit state machine ([`agent/loop.py`](backend/app/agent/loop.py)), with each state exposing only its
+  tools ([`agent/states.py`](backend/app/agent/states.py)).
+- Arguments are validated against Pydantic schemas. Unknown fields are rejected, and errors come back as
+  machine-readable codes the model can react to.
+- Supplier free text only ever arrives as `untrusted_text`.
+
+**5. How should decisions be made?**
+
+- The engine computes the requirement and generates and ranks every feasible option by the constraint priority
+  ([`engine/options.py`](backend/app/engine/options.py)).
+- The model chooses one option id after gathering the required evidence, or investigates when the data cannot
+  support a decision.
+- The outcome label, factors, confidence and residual risk are derived in code
+  ([`engine/decision.py`](backend/app/engine/decision.py)).
+- Demand reactions need evidence: planning on the recent run-rate is refused unless the engine classified a
+  sustained shift ([`engine/demand.py`](backend/app/engine/demand.py), [D18](docs/decisions.md)).
+
+**6. What actions should the agent be allowed to perform?**
+
+- Create and submit POs, increase or acknowledge PO lines, plan intra-city transfers, request approval, escalate.
+- Cancellations and reductions below the confirmed quantity always go to a human.
+- Every action is idempotent, re-validated at the moment of acting, bound to the decided option, and audited
+  ([`tools/act.py`](backend/app/tools/act.py)).
+
+**7. When is human approval appropriate?**
+
+- When the value is over the auto limit (3,000,000 COP / 15,000 MXN), the supplier is an alternate, the price is more
+  than 5% above the primary's, a budget override is needed, or the action is a cancellation.
+- The gate creates the approval itself, so the model cannot skip it. The request shows the decided option next to
+  the best option that needs no approval.
+- Thresholds live in [`policy.yaml`](backend/app/policy/policy.yaml); the gate is [`policy/gate.py`](backend/app/policy/gate.py).
+
+**8. How should the result be validated?**
+
+- With four layers: pre-action `validate_po`, a post-action database diff, the supplier response, and an outcome
+  re-projection with the confirmed quantities.
+- On failure: replan (at most 3), then escalate. See [How Decisions Are Validated](#how-decisions-are-validated).
+
 ## How Decisions Are Validated
 
 The agent's tool results say what it *thinks* happened. Validation checks what *did* happen, from four
@@ -301,6 +370,19 @@ stockout on day 7 (128 unmet)**. Approve, and 714 is bought. Reject, and the age
 accepted risk.
 
 ## Beyond the scenarios
+
+The brief lists optional buyer problems. These are already handled by the same agent and engine:
+
+| Problem | How | Where |
+|---|---|---|
+| **Supplier reliability** | Every supplier answer updates reliability as an EWMA of fill rate (Alquería 0.95 → 0.76 after a rejection); suppliers that reject or under-deliver are excluded for the rest of the run | [`supplier_mock/service.py`](backend/app/supplier_mock/service.py), `x_supplier_rejects` |
+| **Alternate suppliers** | Every eligible supplier is evaluated as an option, with price variance and an approval gate | [`engine/options.py`](backend/app/engine/options.py), `s2_partial_needs_alternate`, `x_replans_exhausted` |
+| **Promotional buying** | Promotion windows uplift the forecast for their days only, so a promo is not mistaken for a trend | [`engine/demand.py`](backend/app/engine/demand.py) `apply_promotions`, `s3_promo_uplift` |
+| **Forecast anomalies** | A sustained shift, a one-off bulk order, a promo, stockout-censored sales and inconclusive evidence are told apart by explicit rules | `detect_demand_shift`, `s3_real_surge`, `s3_one_off_outlier` |
+| **Safety stock** | Part of every requirement; options that end below it rank lower | [`engine/replenishment.py`](backend/app/engine/replenishment.py), `s4_storage_binding` |
+| **Open purchase orders** | Confirmed inbound nets the requirement; open lines can be increased instead of placing a second PO; partial fills are acknowledged | `s1_already_covered`, `s3_real_surge`, `s2_partial_enough` |
+| **Inter-node transfers** | Spare stock at a node in the same city is an option before buying | `s2_alt_moq_exceeds_gap` |
+| **Stale data** | A stale count blocks a decision only if deducting the sales since the count changes the order | [`engine/quality.py`](backend/app/engine/quality.py), `s1_stale_inventory` |
 
 ## Limitations & Next Steps
 
