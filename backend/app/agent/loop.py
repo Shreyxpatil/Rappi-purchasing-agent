@@ -451,6 +451,7 @@ class PurchasingAgent:
         start = time.perf_counter()
         model = getattr(self.llm, "model", self.llm.name)
         log.info("llm call: provider=%s model=%s state=%s messages=%d", self.llm.name, model, state, len(r.messages))
+        self.llm.on_wait = lambda w: self._record_wait(r, w)
         try:
             resp = self.llm.complete(r.messages, schemas)
         except LLMError as e:
@@ -460,6 +461,8 @@ class PurchasingAgent:
                        latency_ms=int((time.perf_counter() - start) * 1000))
             self._fail(r, e.code, str(e))
             return None
+        finally:
+            self.llm.on_wait = None
         log.info("llm done: provider=%s model=%s state=%s latency_ms=%d tokens=%s/%s tool_calls=%d", self.llm.name,
                  model, state, int((time.perf_counter() - start) * 1000), resp.tokens_in, resp.tokens_out,
                  len(resp.tool_calls))
@@ -469,6 +472,16 @@ class PurchasingAgent:
                    tokens_out=resp.tokens_out)
         r.messages.append(resp.as_message())
         return resp
+
+    _WAIT_LABEL = {"rate_limit": "rate limited", "network": "network error", "server": "provider unavailable",
+                   "pacing": "pacing requests"}
+
+    def _record_wait(self, r: _Run, wait: dict[str, Any]) -> None:
+        """Put a retry or pacing wait on the trace *before* sleeping, so a blocked run is visibly waiting."""
+        label = self._WAIT_LABEL.get(wait["reason"], wait["reason"])
+        verb = "next request" if wait["reason"] == "pacing" else "retrying"
+        r.rec.step("wait", f"waiting: {label}, {verb} in {wait['delay_s']:g}s", {"state": r.state}, wait,
+                   latency_ms=int(wait["delay_s"] * 1000))
 
     def _schemas(self, r: _Run) -> list[dict[str, Any]]:
         out = []

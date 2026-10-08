@@ -6,7 +6,7 @@ import { Badge, Card, Json, statusTone } from '../ui'
 const KIND_LABEL: Record<string, string> = {
   llm: 'model', tool: 'tool', decision: 'decision', policy: 'policy gate', validation: 'post-action diff',
   supplier: 'supplier', verification: 'outcome check', approval: 'approval', escalation: 'escalation',
-  narrative_check: 'narrative check', nudge: 'nudge', intake: 'intake', error: 'error',
+  narrative_check: 'narrative check', nudge: 'nudge', intake: 'intake', error: 'error', wait: 'waiting',
 }
 
 export default function RunView({ runId, onApprovals }: { runId: number; onApprovals: () => void }) {
@@ -97,7 +97,7 @@ function StepRow({ step }: { step: Step }) {
     <li>
       <button onClick={() => setOpen(!open)} className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-sm hover:bg-slate-50">
         <span className={`h-2 w-2 shrink-0 rounded-full ${step.ok ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-        <Badge tone={step.kind === 'llm' ? 'blue' : 'gray'}>{KIND_LABEL[step.kind] ?? step.kind}</Badge>
+        <Badge tone={step.kind === 'llm' ? 'blue' : step.kind === 'wait' ? 'amber' : step.kind === 'error' ? 'red' : 'gray'}>{KIND_LABEL[step.kind] ?? step.kind}</Badge>
         <span className="font-mono text-xs">{step.name}</span>
         {err && <Badge tone="red">{err}</Badge>}
         <span className="ml-auto text-xs text-slate-400">

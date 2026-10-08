@@ -303,3 +303,30 @@ def test_time_waiting_for_approval_does_not_count(run_case) -> None:
     agent.max_run_seconds = used + 5  # a long human pause would blow a wall-clock budget, not an active one
     agent.resolve_and_resume(run, approval.id, approve=True, decided_by="cm")
     assert run.status == "COMPLETED"
+
+
+def test_retries_and_waits_appear_on_the_trace(run_case) -> None:
+    from app.agent.loop import PurchasingAgent
+    from app.llm.base import LLMClient
+    from app.llm.scripted import ScriptedClient
+
+    class Flaky(LLMClient):
+        """Reports a rate-limit wait on its first call, like a real client hitting a 429."""
+        name = "flaky"
+
+        def __init__(self):
+            self.inner, self.calls = ScriptedClient.for_case("s1_overstock"), 0
+
+        def complete(self, messages, tools):
+            self.calls += 1
+            if self.calls == 1 and self.on_wait:
+                self.on_wait({"reason": "rate_limit", "delay_s": 7.0, "attempt": 1, "message": "429"})
+            return self.inner.complete(messages, tools)
+
+    _, _, s, fx = run_case("s1_overstock", turns=[])
+    agent = PurchasingAgent(s, Flaky())
+    run = agent.run(agent.start(fx.id, fx.trigger.model_dump()))
+    wait = next(st for st in run.steps if st.kind == "wait")
+    assert wait.name == "waiting: rate limited, retrying in 7s" and wait.state == "INVESTIGATE"
+    assert wait.seq < next(st.seq for st in run.steps if st.kind == "llm")  # recorded before the call returned
+    assert run.status == "COMPLETED" and agent.llm.on_wait is None
