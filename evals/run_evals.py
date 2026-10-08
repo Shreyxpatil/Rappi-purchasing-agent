@@ -23,6 +23,7 @@ from app.cli import run_case  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.fixtures import list_fixtures, load_fixture  # noqa: E402
 from app.llm.factory import make_client  # noqa: E402
+from app.logs import configure_logging  # noqa: E402
 from evals.graders import grade_run  # noqa: E402
 from evals.judge import judge_narrative  # noqa: E402
 from evals.report import RESULTS_DIR, write_report  # noqa: E402
@@ -82,6 +83,7 @@ def main() -> None:
     p.add_argument("--runs", type=int, help="runs per case (default: 3 scripted, 1 real)")
     p.add_argument("--judge", choices=["gemini", "openai_compat"], help="LLM judge for explanation quality")
     args = p.parse_args()
+    configure_logging()
 
     for provider in args.provider:
         cases = args.case or ([f.id for f in list_fixtures()] if provider == "scripted" else REAL_SUBSET)

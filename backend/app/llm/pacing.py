@@ -3,12 +3,14 @@
 Both take injectable `sleep`/`now`/`rng` so tests run instantly and deterministically.
 """
 
+import logging
 import random
 import time
 from collections.abc import Callable
 from typing import TypeVar
 
 T = TypeVar("T")
+log = logging.getLogger("app.llm")
 
 
 class Pacer:
@@ -25,6 +27,7 @@ class Pacer:
         t = self.now()
         delay = max(0.0, self._next - t)
         if delay:
+            log.info("pacer: waiting %.1f s to stay under the request rate limit", delay)
             self.sleep(delay)
         self._next = max(t, self._next) + self.interval
         return delay
@@ -49,10 +52,12 @@ def with_backoff(fn: Callable[[], T], *, max_retries: int = 5, base: float = 2.0
             return fn()
         except RetryableError as e:
             if attempt == max_retries:
+                log.warning("giving up after %d retries: %s", max_retries, e)
                 raise
             delay = rng.uniform(0, min(cap, base ** (attempt + 1)))
             if e.retry_after is not None:
                 delay = max(delay, e.retry_after)
+            log.warning("retry %d/%d in %.1f s: %s", attempt + 1, max_retries, delay, e)
             if on_retry:
                 on_retry(attempt + 1, delay, e)
             sleep(delay)

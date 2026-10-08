@@ -8,6 +8,7 @@ tools for the chosen option) and REPORT (explain the structured decision).
 """
 
 import json
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -24,6 +25,7 @@ from app.agent.validation import diff_against_intent
 from app.agent.states import ALLOWED_TOOLS, MAX_TURNS, REQUIRED_EVIDENCE, RunStatus, State
 from app.clock import clock_for
 from app.engine.quality import data_blocks_decision
+from app.logs import RUN_ID
 from app.llm.base import LLMClient, LLMError, Message, ToolCall
 from app.models import AgentRun, AuditLog, POLine, PurchaseOrder, StockTransfer
 from app.policy import Policy, get_policy
@@ -34,6 +36,8 @@ from app.tools.act import decided_option, gate_price_change, preview_gate, resol
 from app.tools.compute import assess_data, build_decision, plan_context
 from app.tools.registry import ToolError, schema_for, tool_schema
 
+
+log = logging.getLogger("app.agent")
 
 # Errors that mean "the call itself was malformed", as opposed to business outcomes such as BLOCKED.
 MALFORMED = {"INVALID_ARGUMENTS", "UNKNOWN_TOOL", "TOOL_NOT_ALLOWED_IN_STATE", "NO_TOOL_CALL"}
@@ -418,6 +422,7 @@ class PurchasingAgent:
     # ------------------------------------------------------------------ plumbing
 
     def _load(self, run: AgentRun) -> _Run:
+        RUN_ID.set(run.id)  # every log line below, including inside the LLM clients, carries this run id
         state, messages, extra = load_context(run)
         clock = clock_for(self.session)
         ctx = ToolContext(session=self.session, clock=clock, policy=self.policy, run_id=run.id, state=state)
@@ -433,12 +438,20 @@ class PurchasingAgent:
             return None
         schemas = self._schemas(r) if tools else []
         start = time.perf_counter()
+        model = getattr(self.llm, "model", self.llm.name)
+        log.info("llm call: provider=%s model=%s state=%s messages=%d", self.llm.name, model, state, len(r.messages))
         try:
             resp = self.llm.complete(r.messages, schemas)
         except LLMError as e:
-            r.rec.step("llm", self.llm.name, {"state": state}, {"code": e.code, "error": str(e)}, ok=False)
+            log.warning("llm call failed: provider=%s model=%s state=%s after %d ms: %s", self.llm.name, model, state,
+                        int((time.perf_counter() - start) * 1000), e)
+            r.rec.step("llm", self.llm.name, {"state": state}, {"code": e.code, "error": str(e)}, ok=False,
+                       latency_ms=int((time.perf_counter() - start) * 1000))
             self._fail(r, e.code, str(e))
             return None
+        log.info("llm done: provider=%s model=%s state=%s latency_ms=%d tokens=%s/%s tool_calls=%d", self.llm.name,
+                 model, state, int((time.perf_counter() - start) * 1000), resp.tokens_in, resp.tokens_out,
+                 len(resp.tool_calls))
         r.rec.step("llm", self.llm.name, {"state": state, "messages": len(r.messages), "tools": len(schemas)},
                    {"text": resp.text, "tool_calls": [c.model_dump() for c in resp.tool_calls], "model": resp.model},
                    latency_ms=int((time.perf_counter() - start) * 1000), tokens_in=resp.tokens_in,

@@ -5,9 +5,11 @@ from fastapi import FastAPI
 from app.api import router
 from app.config import get_settings
 from app.db import create_schema, make_engine, make_session_factory
+from app.logs import configure_logging
 
 
 def create_app(database_url: str | None = None) -> FastAPI:
+    configure_logging()
     app = FastAPI(title="Rappi AI Purchasing Agent")
     engine = make_engine(database_url or get_settings().database_url)
     create_schema(engine)

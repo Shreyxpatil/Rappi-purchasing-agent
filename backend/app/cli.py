@@ -14,6 +14,7 @@ from app.agent.loop import PurchasingAgent
 from app.db import create_schema, make_engine, make_session_factory
 from app.fixtures import load_fixture
 from app.llm.factory import make_client
+from app.logs import configure_logging
 from app.models import Approval, PurchaseOrder, StockTransfer
 from app.seed import seed_workspace
 
@@ -41,6 +42,7 @@ def main() -> None:
     parser.add_argument("case")
     parser.add_argument("--provider", default="scripted", choices=["scripted", "gemini", "openai_compat"])
     args = parser.parse_args()
+    configure_logging()
     start = time.perf_counter()
     session, run = run_case(args.case, args.provider)
     d = run.decision or {}
