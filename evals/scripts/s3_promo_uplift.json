@@ -38,6 +38,27 @@
       "node": "CDMX-02",
       "sku": "AGUA-CIEL-1L"
      }
+    },
+    {
+     "name": "get_supplier_terms",
+     "args": {
+      "supplier_id": "SUP-FEMSA-MX",
+      "sku": "AGUA-CIEL-1L"
+     }
+    },
+    {
+     "name": "get_budget",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    },
+    {
+     "name": "get_storage_capacity",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
     }
    ]
   },

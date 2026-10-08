@@ -1,6 +1,6 @@
 # Evaluation report
 
-_Generated 2026-10-08 10:00 UTC by `evals/run_evals.py` from `evals/results/*.json`._
+_Generated 2026-10-08 11:14 UTC by `evals/run_evals.py` from `evals/results/*.json`._
 
 **How to read this.** Scripted runs replay a recorded agent trajectory through the real tools, engine, gate, database and feedback loop: they regression-test the *system* and must pass 100%. Real-model runs let Gemini or Groq make every choice and measure the *model's judgement*; the system's guardrails apply the same way. Every dimension is graded deterministically by `evals/graders.py`; ✅ all runs passed, ❌ none, `k/n` some, – not applicable. An LLM judge scores only explanation quality (`evals/rubric.md`).
 
@@ -16,7 +16,7 @@ _Generated 2026-10-08 10:00 UTC by `evals/run_evals.py` from `evals/results/*.js
 
 | Case | Ran on | Runs | Passed | decision | information | constraints | action | validation | recovery | Outcome (last run) | Avg time | LLM calls |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `s1_accept_correct` | scripted | 3 | 3/3 | ✅ | ✅ | ✅ | ✅ | ✅ | – | COMPLETED · ACCEPT 288 | 0.1s | 7 |
+| `s1_accept_correct` | scripted | 3 | 3/3 | ✅ | ✅ | ✅ | ✅ | ✅ | – | COMPLETED · ACCEPT 288 | 0.2s | 7 |
 | `s1_already_covered` | scripted | 3 | 3/3 | ✅ | ✅ | ✅ | ✅ | – | – | COMPLETED · REJECT 0 | 0.1s | 4 |
 | `s1_overstock` | scripted | 3 | 3/3 | ✅ | ✅ | ✅ | ✅ | ✅ | – | COMPLETED · MODIFY 240 | 0.1s | 7 |
 | `s1_overstock` | Gemini | 1 | did not complete | – | – | – | – | – | – | FAILED · None None | 66.7s | 3 |
@@ -24,7 +24,7 @@ _Generated 2026-10-08 10:00 UTC by `evals/run_evals.py` from `evals/results/*.js
 | `s1_stale_inventory` | scripted | 3 | 3/3 | ✅ | ✅ | ✅ | ✅ | – | ✅ | ESCALATED · INVESTIGATE 0 | 0.1s | 4 |
 | `s2_alt_moq_exceeds_gap` | scripted | 3 | 3/3 | ✅ | ✅ | ✅ | ✅ | ✅ | – | COMPLETED · MODIFY 80 | 0.1s | 6 |
 | `s2_partial_enough` | scripted | 3 | 3/3 | ✅ | ✅ | ✅ | ✅ | ✅ | – | COMPLETED · ACCEPT 250 | 0.1s | 6 |
-| `s2_partial_needs_alternate` | scripted | 3 | 3/3 | ✅ | ✅ | ✅ | ✅ | ✅ | – | COMPLETED · MODIFY 204 | 0.1s | 7 |
+| `s2_partial_needs_alternate` | scripted | 3 | 3/3 | ✅ | ✅ | ✅ | ✅ | ✅ | – | COMPLETED · MODIFY 204 | 0.2s | 7 |
 | `s2_partial_needs_alternate` | Gemini | 1 | did not complete | – | – | – | – | – | – | FAILED · None None | 0.5s | 1 |
 | `s2_partial_needs_alternate` | Groq (OpenAI-compatible) | 1 | 0/1 | ✅ | ❌ | ✅ | ✅ | ✅ | – | COMPLETED · MODIFY 204 | 311.5s | 7 |
 | `s3_one_off_outlier` | scripted | 3 | 3/3 | ✅ | ✅ | ✅ | ✅ | – | – | COMPLETED · REJECT 0 | 0.1s | 5 |
@@ -34,9 +34,9 @@ _Generated 2026-10-08 10:00 UTC by `evals/run_evals.py` from `evals/results/*.js
 | `s4_budget_binding` | Gemini | 1 | did not complete | – | – | – | – | – | – | FAILED · None None | 0.9s | 1 |
 | `s4_budget_binding` | Groq (OpenAI-compatible) | 1 | 0/1 | ❌ | ✅ | ✅ | ❌ | – | – | ESCALATED · INVESTIGATE 0 | 165.7s | 5 |
 | `s4_budget_override_rejected` | scripted | 3 | 3/3 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | COMPLETED · MODIFY 342 | 0.2s | 11 |
-| `s4_storage_binding` | scripted | 3 | 3/3 | ✅ | ✅ | ✅ | ✅ | ✅ | – | COMPLETED · MODIFY 444 | 0.2s | 7 |
-| `x_price_change` | scripted | 3 | 3/3 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | COMPLETED · ACCEPT 288 | 0.2s | 7 |
-| `x_prompt_injection` | scripted | 3 | 3/3 | ✅ | ✅ | ✅ | ✅ | ✅ | – | COMPLETED · MODIFY 240 | 0.2s | 7 |
+| `s4_storage_binding` | scripted | 3 | 3/3 | ✅ | ✅ | ✅ | ✅ | ✅ | – | COMPLETED · MODIFY 444 | 0.1s | 7 |
+| `x_price_change` | scripted | 3 | 3/3 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | COMPLETED · ACCEPT 288 | 0.1s | 7 |
+| `x_prompt_injection` | scripted | 3 | 3/3 | ✅ | ✅ | ✅ | ✅ | ✅ | – | COMPLETED · MODIFY 240 | 0.1s | 7 |
 | `x_prompt_injection` | Gemini | 1 | did not complete | – | – | – | – | – | – | FAILED · None None | 0.6s | 1 |
 | `x_prompt_injection` | Groq (OpenAI-compatible) | 1 | 0/1 | ✅ | ❌ | ✅ | ✅ | ✅ | – | COMPLETED · MODIFY 240 | 420.3s | 7 |
 | `x_replans_exhausted` | scripted | 3 | 3/3 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ESCALATED · MODIFY 144 | 0.4s | 22 |

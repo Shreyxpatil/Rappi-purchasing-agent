@@ -311,7 +311,8 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
 
   A tool used in the wrong state returns `TOOL_NOT_ALLOWED_IN_STATE`, which is why an injected `create_po_draft`
   during investigation never reaches the gate. Code enforces, in `propose_decision`:
-  1. an evidence checklist per trigger type (`MISSING_EVIDENCE`);
+  1. an evidence checklist per trigger type, plus supplier terms, budget and storage before a purchase or
+     transfer (`MISSING_EVIDENCE`, D32);
   2. `DATA_BLOCKS_DECISION` when stale data matters;
   3. `OPTION_BLOCKED` for hard-violating options.
 
@@ -491,4 +492,19 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
   produce.
 - **Tooling:** Playwright and imageio-ffmpeg live in a separate `demo` dependency group, so neither the app, the
   tests nor the Docker image depend on them.
+
+## D32. Evidence before buying or moving stock is enforced in code
+
+- **Decision:** `propose_decision` for an option that buys or transfers stock is refused with `MISSING_EVIDENCE`
+  until the agent has read `get_supplier_terms`, `get_budget` and `get_storage_capacity`, on top of the trigger's
+  checklist (inventory, forecast, open POs, net requirement, options). The error lists exactly which reads are
+  missing. Choosing to INVESTIGATE stays exempt: it acts on nothing.
+- **Why:** In the recorded demo runs both live models went from inventory, forecast and open POs straight to the
+  options. The result was still safe, because `generate_options` applies MOQ, budget, storage and cover in code, but
+  the agent had not looked at the facts behind its decision, and the eval's *information* dimension caught it. The
+  checklist was more lenient than the grader; now the code and the grader agree.
+- **Consequences:** six scripted trajectories gained the reads they had skipped. The thin-evidence negative control
+  is now refused by the code, so grader specificity is proven on a good trace with those reads deleted.
+- **Alternative considered:** leaving it to the prompt. Rejected: the prompt already asked for evidence and both
+  models skipped it; rules that matter live in code (principle 3).
 

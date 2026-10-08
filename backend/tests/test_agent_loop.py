@@ -94,6 +94,30 @@ def test_decision_without_evidence_is_refused(run_case) -> None:
     assert run.status == "FAILED"  # script ran out: no decision was ever accepted
 
 
+S1 = {"node": "BOG-01", "sku": "LECHE-ALQ-1L"}
+BASE_READS = {"tool_calls": [{"name": n, "args": S1} for n in ("get_inventory", "get_forecast", "get_open_pos")]}
+COMPUTE = {"tool_calls": [{"name": n, "args": S1} for n in ("calculate_net_requirement", "generate_options")]}
+ACTION_READS = {"tool_calls": [{"name": "get_supplier_terms", "args": {"supplier_id": "SUP-ALQ", "sku": "LECHE-ALQ-1L"}},
+                               {"name": "get_budget", "args": S1}, {"name": "get_storage_capacity", "args": S1}]}
+BUY_240 = {"tool_calls": [{"name": "propose_decision", "args": {"option_id": "BUY:SUP-ALQ:240"}}]}
+
+
+def test_a_purchase_needs_supplier_terms_budget_and_storage_read_first(run_case) -> None:
+    _, run, _, _ = run_case("s1_overstock", [BASE_READS, COMPUTE, BUY_240, ACTION_READS, BUY_240])
+    first, second = [st for st in run.steps if st.name == "propose_decision"]
+    assert first.output["error"]["code"] == "MISSING_EVIDENCE"
+    assert first.output["error"]["details"]["missing"] == ["get_budget", "get_storage_capacity", "get_supplier_terms"]
+    assert second.ok and (run.decision["outcome"], run.decision["quantity"]) == ("MODIFY", 240)
+
+
+def test_investigating_needs_only_the_base_evidence(run_case) -> None:
+    investigate = {"tool_calls": [{"name": "propose_decision", "args": {
+        "investigate": True, "information_needed": ["a fresh stock count"]}}]}
+    _, run, _, _ = run_case("s1_overstock", [BASE_READS, COMPUTE, investigate])
+    step = next(st for st in run.steps if st.name == "propose_decision")
+    assert step.ok and run.decision["outcome"] == "INVESTIGATE"
+
+
 def test_action_tools_are_not_available_while_investigating(run_case) -> None:
     turns = [{"tool_calls": [{"name": "create_po_draft", "args": {"node": "BOG-01", "sku": "LECHE-ALQ-1L",
               "supplier_id": "SUP-ALQ", "deliveries": [{"day": 3, "qty": 10000}], "idempotency_key": "x"}}]}]

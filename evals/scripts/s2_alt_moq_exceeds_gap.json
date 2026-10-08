@@ -37,6 +37,27 @@
       "node": "CDMX-01",
       "sku": "LECHE-LALA-1L"
      }
+    },
+    {
+     "name": "get_supplier_terms",
+     "args": {
+      "supplier_id": "SUP-LALA",
+      "sku": "LECHE-LALA-1L"
+     }
+    },
+    {
+     "name": "get_budget",
+     "args": {
+      "node": "CDMX-01",
+      "sku": "LECHE-LALA-1L"
+     }
+    },
+    {
+     "name": "get_storage_capacity",
+     "args": {
+      "node": "CDMX-01",
+      "sku": "LECHE-LALA-1L"
+     }
     }
    ]
   },

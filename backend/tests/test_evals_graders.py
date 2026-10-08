@@ -29,8 +29,20 @@ def test_doing_nothing_fails_decision_and_action_only() -> None:
                         "validation": None, "recovery": None}
 
 
-def test_right_answer_on_thin_evidence_fails_information_only() -> None:
-    _, _, g = _grade("s1_overstock", "bad_thin_evidence")
+def test_thin_evidence_is_refused_by_the_code_and_fails_information() -> None:
+    _, run, g = _grade("s1_overstock", "bad_thin_evidence")
+    refused = [st for st in run.steps if st.name == "propose_decision" and not st.ok]
+    assert refused and refused[0].output["error"]["code"] == "MISSING_EVIDENCE"  # the code never let it decide
+    assert g["dimensions"]["information"]["pass"] is False
+    assert "get_supplier_terms" in g["dimensions"]["information"]["detail"]
+
+
+def test_a_trace_missing_required_reads_fails_information_only() -> None:
+    session, run, _ = _grade("s1_overstock")  # the grader alone, on a tampered good trace
+    session.execute(delete(AgentStep).where(AgentStep.run_id == run.id, AgentStep.name.in_(
+        ["get_supplier_terms", "get_budget", "get_storage_capacity"])))
+    session.expire_all()
+    g = grade_run(session, run, load_fixture("s1_overstock"))
     assert [k for k, v in g["dimensions"].items() if v["pass"] is False] == ["information"]
     assert "get_supplier_terms" in g["dimensions"]["information"]["detail"]
 

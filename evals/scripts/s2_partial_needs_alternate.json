@@ -7,7 +7,10 @@
       {"name": "get_inventory", "args": {"node": "CDMX-01", "sku": "LECHE-LALA-1L"}},
       {"name": "get_forecast", "args": {"node": "CDMX-01", "sku": "LECHE-LALA-1L"}},
       {"name": "list_alternate_suppliers", "args": {"sku": "LECHE-LALA-1L"}},
-      {"name": "get_inventory_other_nodes", "args": {"node": "CDMX-01", "sku": "LECHE-LALA-1L"}}]},
+      {"name": "get_inventory_other_nodes", "args": {"node": "CDMX-01", "sku": "LECHE-LALA-1L"}},
+      {"name": "get_supplier_terms", "args": {"supplier_id": "SUP-CEDA", "sku": "LECHE-LALA-1L"}},
+      {"name": "get_budget", "args": {"node": "CDMX-01", "sku": "LECHE-LALA-1L"}},
+      {"name": "get_storage_capacity", "args": {"node": "CDMX-01", "sku": "LECHE-LALA-1L"}}]},
     {"tool_calls": [
       {"name": "calculate_net_requirement", "args": {"node": "CDMX-01", "sku": "LECHE-LALA-1L"}},
       {"name": "project_inventory", "args": {"node": "CDMX-01", "sku": "LECHE-LALA-1L"}},

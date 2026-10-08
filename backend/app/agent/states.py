@@ -54,4 +54,9 @@ REQUIRED_EVIDENCE: dict[str, set[str]] = {
                      "generate_options"},
 }
 
+# Extra reads before a decision that buys or moves stock: the constraints the engine applies (supplier terms, budget,
+# storage) must also be evidence the agent has looked at. INVESTIGATE decisions are exempt.
+ACTION_EVIDENCE: set[str] = {"get_supplier_terms", "get_budget", "get_storage_capacity"}
+ACTION_KINDS = {"PURCHASE", "TRANSFER"}
+
 MAX_TURNS = {State.INVESTIGATE: 12, State.EXECUTE: 8}

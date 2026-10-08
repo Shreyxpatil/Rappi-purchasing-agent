@@ -22,7 +22,7 @@ from app.agent.narrative import template_narrative, ungrounded_numbers
 from app.agent.control import CONTROL_TOOLS, FinishExecutionArgs, ProposeDecisionArgs
 from app.agent.persistence import Recorder, load_context
 from app.agent.validation import diff_against_intent
-from app.agent.states import ALLOWED_TOOLS, MAX_TURNS, REQUIRED_EVIDENCE, RunStatus, State
+from app.agent.states import ACTION_EVIDENCE, ACTION_KINDS, ALLOWED_TOOLS, MAX_TURNS, REQUIRED_EVIDENCE, RunStatus, State
 from app.clock import clock_for
 from app.config import get_settings
 from app.engine.quality import data_blocks_decision
@@ -342,7 +342,7 @@ class PurchasingAgent:
         except ValidationError as e:
             return _error("INVALID_ARGUMENTS", "arguments do not match the schema", {"errors": e.errors()})
         trigger = r.ctx.state.trigger
-        missing = sorted(REQUIRED_EVIDENCE[trigger["type"]] - set(r.extra["evidence"]))
+        missing = sorted(self._missing_evidence(r, args))
         if missing:
             return _error("MISSING_EVIDENCE", "gather this evidence before deciding", {"missing": missing})
         if not args.investigate:
@@ -370,6 +370,18 @@ class PurchasingAgent:
         r.run.decision = d
         r.extra["next_state"] = State.DECIDE
         return {"ok": True, "output": {"outcome": d["outcome"], "quantity": d["quantity"], "option_id": d["option_id"]}}
+
+    def _missing_evidence(self, r: _Run, args: ProposeDecisionArgs) -> set[str]:
+        """Reads the decision still needs. Always the trigger's checklist; for a purchase or transfer also
+        supplier terms, budget and storage."""
+        have = set(r.extra["evidence"])
+        missing = REQUIRED_EVIDENCE[r.ctx.state.trigger["type"]] - have
+        if args.investigate:
+            return missing
+        option = next((o for o in (r.ctx.state.options or {}).get("options", []) if o["id"] == args.option_id), None)
+        if option is not None and option["kind"] in ACTION_KINDS:
+            missing |= ACTION_EVIDENCE - have
+        return missing
 
     def _finish(self, r: _Run, call: ToolCall) -> dict[str, Any]:
         try:

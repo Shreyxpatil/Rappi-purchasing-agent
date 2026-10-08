@@ -38,6 +38,13 @@
       "node": "BOG-01",
       "sku": "COCA-1.5L"
      }
+    },
+    {
+     "name": "get_storage_capacity",
+     "args": {
+      "node": "BOG-01",
+      "sku": "COCA-1.5L"
+     }
     }
    ]
   },

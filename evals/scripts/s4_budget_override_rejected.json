@@ -6,7 +6,9 @@
       {"name": "get_inventory", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}},
       {"name": "get_forecast", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}},
       {"name": "get_open_pos", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}},
-      {"name": "get_budget", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}}]},
+      {"name": "get_budget", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}},
+      {"name": "get_supplier_terms", "args": {"supplier_id": "SUP-FEMSA-CO", "sku": "COCA-1.5L"}},
+      {"name": "get_storage_capacity", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}}]},
     {"tool_calls": [
       {"name": "calculate_net_requirement", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}},
       {"name": "generate_options", "args": {"node": "BOG-02", "sku": "COCA-1.5L"}}]},

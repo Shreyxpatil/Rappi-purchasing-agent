@@ -1,6 +1,6 @@
 {
  "case": "s1_overstock",
- "notes": "BAD: right decision on thin evidence: never looks at supplier terms, budget or storage.",
+ "notes": "BAD: tries to decide on thin evidence, never reading supplier terms, budget or storage; the code refuses it (MISSING_EVIDENCE) and the grader fails information.",
  "turns": [
   {
    "tool_calls": [
