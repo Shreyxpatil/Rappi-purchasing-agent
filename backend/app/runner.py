@@ -28,7 +28,7 @@ def prepare_run(session: Session, case_id: str, provider: str,
     `supplier_behaviour` replaces the scenario's scripted supplier answers (demo: inject a failure).
     """
     fx = load_fixture(case_id)
-    make_client(provider, case_id=case_id)  # validates provider config (raises LLMError)
+    llm = make_client(provider, case_id=case_id)  # validates provider config (raises LLMError) before any reset
     for run in session.scalars(select(AgentRun).filter_by(status=RunStatus.AWAITING_APPROVAL)):
         run.status = RunStatus.SUPERSEDED  # its workspace is about to be replaced (decision D7)
         for a in session.scalars(select(Approval).filter_by(run_id=run.id, status="PENDING")):
@@ -38,8 +38,7 @@ def prepare_run(session: Session, case_id: str, provider: str,
         ws = session.get(Workspace, 1)
         ws.config = {**ws.config, "supplier_behaviour": supplier_behaviour}
     session.commit()
-    agent = PurchasingAgent(session, make_client(provider, case_id=case_id))
-    return agent.start(fx.id, fx.trigger.model_dump())
+    return PurchasingAgent(session, llm).start(fx.id, fx.trigger.model_dump())
 
 
 def execute_run(session: Session, run_id: int) -> AgentRun:

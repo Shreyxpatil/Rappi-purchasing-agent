@@ -90,3 +90,10 @@ def test_network_outage_is_reported_as_network() -> None:
     with pytest.raises(LLMError) as e:
         client.complete([Message(role="user", content="x")], [])
     assert e.value.code == "NETWORK" and len(sleeps) == 2
+
+
+def test_a_non_json_success_response_is_a_typed_error() -> None:
+    client, _ = _client(lambda req: httpx.Response(200, text="<html>gateway page</html>"))
+    with pytest.raises(LLMError) as e:
+        client.complete([Message(role="user", content="x")], [])
+    assert e.value.code == "BAD_RESPONSE"

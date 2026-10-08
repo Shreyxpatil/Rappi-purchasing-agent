@@ -57,7 +57,10 @@ class OpenAICompatibleClient(LLMClient):
                 raise RetryableError(f"HTTP {r.status_code}: {text}", hint)
             if r.status_code >= 400:
                 raise LLMError(f"HTTP_{r.status_code}", r.text[:300])
-            return r.json()
+            try:
+                return r.json()
+            except ValueError as e:  # a proxy or outage page instead of JSON
+                raise LLMError("BAD_RESPONSE", f"non-JSON response: {r.text[:200]}") from e
 
         kwargs = {"sleep": self._sleep} if self._sleep else {}
         try:
