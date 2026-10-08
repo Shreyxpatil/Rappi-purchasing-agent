@@ -408,7 +408,7 @@ The brief lists optional buyer problems. These are already handled by the same a
 
 | Problem | How | Where |
 |---|---|---|
-| **Supplier reliability** | Every supplier answer updates reliability as an EWMA of fill rate (Alquería 0.95 → 0.76 after a rejection); suppliers that reject or under-deliver are excluded for the rest of the run | [`supplier_mock/service.py`](backend/app/supplier_mock/service.py), `x_supplier_rejects` |
+| **Supplier reliability** | Every supplier answer updates reliability as an EWMA of fill rate (Alquería 0.95 → 0.76 after a rejection). Suppliers that reject or under-deliver are excluded for the rest of the run, and reliability breaks ties between equally priced suppliers in later runs | [`supplier_mock/service.py`](backend/app/supplier_mock/service.py), `x_supplier_rejects` |
 | **Alternate suppliers** | Every eligible supplier is evaluated as an option, with price variance and an approval gate | [`engine/options.py`](backend/app/engine/options.py), `s2_partial_needs_alternate`, `x_replans_exhausted` |
 | **Promotional buying** | Promotion windows uplift the forecast for their days only, so a promo is not mistaken for a trend | [`engine/demand.py`](backend/app/engine/demand.py) `apply_promotions`, `s3_promo_uplift` |
 | **Forecast anomalies** | A sustained shift, a one-off bulk order, a promo, stockout-censored sales and inconclusive evidence are told apart by explicit rules | `detect_demand_shift`, `s3_real_surge`, `s3_one_off_outlier` |

@@ -164,7 +164,7 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
 
   ```
   hard block (non-overridable) > unmet units (stockout) > overstock > safety-stock shortfall
-  > needs a human override > alternate supplier > unit cost > number of new deliveries
+  > needs a human override > alternate supplier > unit cost > supplier reliability > number of new deliveries
   ```
 
   A recommendation is *acceptable as is* only if all of these hold:

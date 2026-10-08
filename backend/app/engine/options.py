@@ -5,7 +5,8 @@ evaluated here (constraints, projection, cost), so the choice is between known o
 
 Ranking follows the documented constraint priority:
   hard constraints (unless a human can override) > avoid stockout > avoid overstock
-  > keep safety stock > avoid needing an override > prefer the primary supplier > cost.
+  > keep safety stock > avoid needing an override > prefer the primary supplier > cost
+  > supplier reliability.
 A recommendation that is within tolerance, passes validate_po AND leaves no projected stockout
 before the next cycle is ranked first: the agent should not churn a plan that is already right.
 """
@@ -259,8 +260,11 @@ class _Builder:
         def key(o: dict):
             overstock = any(v.code == "OVERSTOCK" for v in o["violations"])
             new_deliveries = 0 if o["po_id"] else len(o["deliveries"])
+            # Between otherwise equal suppliers, the more reliable one (EWMA of past fill rates) goes first.
+            unreliability = 1 - self.terms[o["supplier_id"]].reliability \
+                if o["kind"] == "PURCHASE" and o["supplier_id"] in self.terms else 0.0
             return (group(o), o["blocked"], o["unmet_units"], overstock, o["safety_shortfall"], o["needs_override"],
-                    o["is_alternate_supplier"], o["unit_cost"], new_deliveries,
+                    o["is_alternate_supplier"], o["unit_cost"], unreliability, new_deliveries,
                     abs(o["qty"] - self.ref_req.order_qty), o["id"])
 
         out = []

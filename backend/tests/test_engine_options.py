@@ -140,3 +140,14 @@ def test_recommendation_that_passes_validation_but_stocks_out_is_not_accepted() 
     assert rec.stockout_day == 4  # ...but the outcome projection fails
     assert not s.recommendation_acceptable
     assert s.options[0].id == "BUY:SUP:200" and s.options[0].stockout_day is None
+
+
+def test_reliability_breaks_ties_between_equally_priced_suppliers() -> None:
+    from app.engine.types import SupplierTerms
+
+    inp = options_input(load_fixture("x_supplier_rejects"), excluded_suppliers=["SUP-ALQ"])
+    same_price = [t.model_copy(update={"unit_cost": 4350.0}) if not t.is_primary else t for t in inp.suppliers]
+    flaky = [t.model_copy(update={"reliability": 0.5}) if t.supplier_id == "SUP-ANDINA" else t for t in same_price]
+    ranked = [o.id for o in generate_options(inp.model_copy(update={"suppliers": flaky})).options]
+    assert ranked.index("BUY:SUP-MAKRO:144") < ranked.index("BUY:SUP-ANDINA:144")  # MAKRO 0.90 > ANDINA 0.50
+    assert isinstance(flaky[0], SupplierTerms)
