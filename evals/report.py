@@ -15,6 +15,11 @@ ORDER = {"scripted": 0, "gemini": 1, "openai_compat": 2}
 LABEL = {"scripted": "scripted", "gemini": "Gemini", "openai_compat": "Groq (OpenAI-compatible)"}
 
 
+def _graded(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Runs that measured the system or the model; infrastructure failures are reported separately."""
+    return [r for r in runs if not r.get("infra_error")]
+
+
 def _rate(values: list[Any]) -> str:
     vals = [v for v in values if v is not None]
     return f"{sum(1 for v in vals if v) / len(vals):.0%} ({sum(1 for v in vals if v)}/{len(vals)})" if vals else "n/a"
@@ -45,17 +50,19 @@ def write_report(results_dir: Path = RESULTS_DIR, report: Path = REPORT) -> Path
              "❌ none, `k/n` some, – not applicable. An LLM judge scores only explanation quality (`evals/rubric.md`).", ""]
 
     lines += ["## Pass rate by provider", "",
-              "| Provider | Model | Cases × runs | Overall | " + " | ".join(DIMS) + " | model_resisted | system_safe |",
-              "|---|---|---|---|" + "---|" * len(DIMS) + "---|---|"]
+              "| Provider | Model | Cases × runs | Overall | " + " | ".join(DIMS)
+              + " | model_resisted | system_safe | Did not complete |",
+              "|---|---|---|---|" + "---|" * len(DIMS) + "---|---|---|"]
     for res in results:
-        runs = res["runs"]
+        infra = sum(1 for r in res["runs"] if r.get("infra_error"))
+        runs = _graded(res["runs"]) or res["runs"][:0]
         cases = len({r["case"] for r in runs})
         per = [_rate([r["dimensions"].get(d) for r in runs]) for d in DIMS]
         mr = _rate([r["extras"].get("model_resisted") for r in runs if "model_resisted" in r.get("extras", {})])
         ss = _rate([r["extras"].get("system_safe") for r in runs if "system_safe" in r.get("extras", {})])
         lines.append(f"| {LABEL.get(res['provider'], res['provider'])} | `{res['model']}` | {cases} × "
-                     f"{max(r['run'] for r in runs)} | **{_rate([r['passed'] for r in runs])}** | "
-                     + " | ".join(per) + f" | {mr} | {ss} |")
+                     f"{max((r['run'] for r in res['runs']), default=0)} | **{_rate([r['passed'] for r in runs])}** | "
+                     + " | ".join(per) + f" | {mr} | {ss} | {infra or '–'} |")
 
     lines += ["", "## Results by case", "",
               "| Case | Ran on | Runs | Passed | " + " | ".join(DIMS) + " | Outcome (last run) | Avg time | LLM calls |",
@@ -67,8 +74,9 @@ def write_report(results_dir: Path = RESULTS_DIR, report: Path = REPORT) -> Path
     for (case, provider), runs in sorted(by_key.items(), key=lambda kv: (kv[0][0], ORDER.get(kv[0][1], 9))):
         last = runs[-1]
         lines.append(
-            f"| `{case}` | {LABEL.get(provider, provider)} | {len(runs)} | {sum(r['passed'] for r in runs)}/{len(runs)} | "
-            + " | ".join(_cell([r["dimensions"].get(d) for r in runs]) for d in DIMS)
+            f"| `{case}` | {LABEL.get(provider, provider)} | {len(runs)} | "
+            + (f"{sum(r['passed'] for r in runs)}/{len(runs)}" if _graded(runs) else "did not complete") + " | "
+            + " | ".join(_cell([r["dimensions"].get(d) for r in _graded(runs)]) for d in DIMS)
             + f" | {last.get('status', 'error')} · {last.get('outcome')} {last.get('quantity')} | "
             f"{sum(r['duration_s'] for r in runs) / len(runs):.1f}s | {sum(r.get('llm_calls', 0) for r in runs) / len(runs):.0f} |")
 
@@ -81,7 +89,16 @@ def write_report(results_dir: Path = RESULTS_DIR, report: Path = REPORT) -> Path
                          f"{r['judge'].get('comment', '').replace('|', '/')} |")
 
     notes = json.loads(ROOT_CAUSES.read_text()) if ROOT_CAUSES.exists() else {}
-    failures = [(r, res) for r, res in rows if not r["passed"]]
+    failures = [(r, res) for r, res in rows if not r["passed"] and not r.get("infra_error")]
+    incomplete = [(r, res) for r, res in rows if r.get("infra_error")]
+    if incomplete:
+        lines += ["", "## Did not complete (infrastructure, excluded from pass rates)", ""]
+        for r, res in incomplete:
+            lines.append(f"- `{r['case']}` on {LABEL.get(res['provider'])} (run {r['run']}): `{r['infra_error']}`")
+            note = (json.loads(ROOT_CAUSES.read_text()) if ROOT_CAUSES.exists() else {}).get(
+                f"{r['case']}|{res['provider']}|{r['run']}")
+            if note:
+                lines.append(f"  - *Root cause:* {note}")
     lines += ["", "## Failures", ""]
     if not failures:
         lines.append("None.")

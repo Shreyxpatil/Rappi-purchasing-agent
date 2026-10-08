@@ -32,6 +32,17 @@ from evals.report import RESULTS_DIR, write_report  # noqa: E402
 # Free-tier quotas allow a representative subset on real models: one per scenario family plus the injection case.
 REAL_SUBSET = ["s1_overstock", "s2_partial_needs_alternate", "s4_budget_binding", "x_prompt_injection"]
 DEFAULT_RUNS = {"scripted": 3, "gemini": 1, "openai_compat": 1}
+# Run failures caused by the provider or the network, not by the model's judgement: kept out of pass rates.
+INFRA_CODES = {"NETWORK", "LLM_QUOTA_EXHAUSTED", "LLM_UNAVAILABLE", "LLM_TIMEOUT", "RUN_TIMEOUT", "BAD_RESPONSE",
+               "TASK_LOST"}
+
+
+def infra_error(row: dict[str, Any]) -> str | None:
+    """The infrastructure failure code of a run, if that is why it failed."""
+    if row.get("error"):  # the run could not even start or crashed outside the agent
+        return row["error"].split(":")[0]
+    code = (row.get("run_error") or "").split(":")[0]
+    return code if code in INFRA_CODES or code.startswith("HTTP_5") else None
 
 
 def model_name(provider: str) -> str:
@@ -64,6 +75,7 @@ def evaluate(provider: str, case: str, run_index: int, judge_provider: str | Non
     except Exception as e:  # a provider outage is a failed run, not a crashed eval
         row.update(passed=False, error=f"{type(e).__name__}: {e}"[:400], dimensions={}, extras={}, failures={})
     row["duration_s"] = round(time.perf_counter() - start, 1)
+    row["infra_error"] = infra_error(row)
     return row
 
 

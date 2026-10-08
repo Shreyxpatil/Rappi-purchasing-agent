@@ -41,3 +41,22 @@ def test_a_run_that_fails_records_its_own_error(monkeypatch) -> None:
     row = evaluate("scripted", "s1_overstock", 1, None)
     assert row["passed"] is False and row["status"] == "FAILED"
     assert row["run_error"].startswith("SCRIPT_EXHAUSTED")
+
+
+def test_infrastructure_failures_are_kept_out_of_pass_rates(tmp_path) -> None:
+    from evals.run_evals import infra_error
+
+    model_miss = {"case": "s1_overstock", "scenario": "S1", "provider": "openai_compat", "run": 1, "passed": False,
+                  "dimensions": {"decision": False}, "extras": {}, "failures": {"decision": "got REJECT"},
+                  "duration_s": 1.0, "status": "COMPLETED"}
+    quota = {**model_miss, "case": "s2_partial_needs_alternate", "status": "FAILED", "failures": {},
+             "run_error": "LLM_QUOTA_EXHAUSTED: daily quota exhausted"}
+    crash = {**model_miss, "case": "s4_budget_binding", "error": "ConnectError: name resolution", "failures": {}}
+    assert [infra_error(r) for r in (model_miss, quota, crash)] == [None, "LLM_QUOTA_EXHAUSTED", "ConnectError"]
+    for r in (model_miss, quota, crash):
+        r["infra_error"] = infra_error(r)
+    store("openai_compat", [model_miss, quota, crash], tmp_path)
+    report = write_report(tmp_path, tmp_path / "report.md").read_text()
+    assert "**0% (0/1)**" in report  # only the model miss is graded
+    assert "## Did not complete (infrastructure, excluded from pass rates)" in report
+    assert "`s2_partial_needs_alternate` on Groq (OpenAI-compatible) (run 1): `LLM_QUOTA_EXHAUSTED`" in report

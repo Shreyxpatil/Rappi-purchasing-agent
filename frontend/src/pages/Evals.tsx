@@ -25,7 +25,9 @@ export default function Evals() {
   const [results, setResults] = useState<EvalResults[]>([])
   useEffect(() => { api.evals().then(setResults) }, [])
   const cases = [...new Set(results.flatMap((r) => r.runs.map((x) => x.case)))].sort()
-  const failures = results.flatMap((r) => r.runs.filter((x) => !x.passed).map((x) => ({ ...x, provider: r.provider })))
+  const graded = (runs: EvalRun[]) => runs.filter((x) => !x.infra_error) // infrastructure failures are not judged
+  const failures = results.flatMap((r) => graded(r.runs).filter((x) => !x.passed).map((x) => ({ ...x, provider: r.provider })))
+  const incomplete = results.flatMap((r) => r.runs.filter((x) => x.infra_error).map((x) => ({ ...x, provider: r.provider })))
 
   return (
     <div className="space-y-4">
@@ -38,7 +40,7 @@ export default function Evals() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-slate-500">
-              <tr><th className="py-1">Provider</th><th>Model</th><th>Runs</th><th>Overall</th>{DIMS.map((d) => <th key={d}>{d}</th>)}<th>model resisted</th><th>system safe</th><th>updated</th></tr>
+              <tr><th className="py-1">Provider</th><th>Model</th><th>Runs</th><th>Overall</th>{DIMS.map((d) => <th key={d}>{d}</th>)}<th>model resisted</th><th>system safe</th><th>did not complete</th><th>updated</th></tr>
             </thead>
             <tbody>
               {results.map((r) => (
@@ -46,10 +48,11 @@ export default function Evals() {
                   <td className="py-1.5 font-medium">{LABEL[r.provider] ?? r.provider}</td>
                   <td className="font-mono text-xs">{r.model}</td>
                   <td>{r.runs.length}</td>
-                  <td className="font-semibold">{rate(r.runs.map((x) => x.passed))}</td>
-                  {DIMS.map((d) => <td key={d}>{rate(r.runs.map((x) => x.dimensions[d]))}</td>)}
-                  <td>{rate(r.runs.map((x) => x.extras?.model_resisted))}</td>
-                  <td>{rate(r.runs.map((x) => x.extras?.system_safe))}</td>
+                  <td className="font-semibold">{rate(graded(r.runs).map((x) => x.passed))}</td>
+                  {DIMS.map((d) => <td key={d}>{rate(graded(r.runs).map((x) => x.dimensions[d]))}</td>)}
+                  <td>{rate(graded(r.runs).map((x) => x.extras?.model_resisted))}</td>
+                  <td>{rate(graded(r.runs).map((x) => x.extras?.system_safe))}</td>
+                  <td>{r.runs.filter((x) => x.infra_error).length || '–'}</td>
                   <td className="text-xs text-slate-400">{r.updated_at}</td>
                 </tr>
               ))}
@@ -75,7 +78,7 @@ export default function Evals() {
                     <td className="py-1 font-mono text-xs">{c}</td>
                     <td>{LABEL[r.provider] ?? r.provider}</td>
                     <td>{runs.filter((x) => x.passed).length}/{runs.length}</td>
-                    {DIMS.map((d) => <td key={d}>{cell(runs, (x) => x.dimensions[d])}</td>)}
+                    {DIMS.map((d) => <td key={d}>{cell(graded(runs), (x) => x.dimensions[d])}</td>)}
                     <td className="text-xs">{last.error ? <Badge tone="red">error</Badge> : `${last.outcome ?? '–'} ${last.quantity ?? ''}`}</td>
                     <td className="text-xs">{(runs.reduce((s, x) => s + x.duration_s, 0) / runs.length).toFixed(1)}s</td>
                     <td className="text-xs">{judged.length ? (judged.reduce((a, b) => a + b, 0) / judged.length).toFixed(1) : '–'}</td>
@@ -86,6 +89,18 @@ export default function Evals() {
           </table>
         </div>
       </Card>
+
+      {incomplete.length > 0 && (
+        <Card title={`Did not complete: infrastructure (${incomplete.length}, excluded from pass rates)`}>
+          <ul className="space-y-1 text-sm">
+            {incomplete.map((f) => (
+              <li key={`${f.provider}-${f.case}-${f.run}`}>
+                <span className="font-mono text-xs">{f.case}</span> on {LABEL[f.provider]}: <Badge tone="amber">{f.infra_error}</Badge>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <Card title={`Failures (${failures.length})`}>
         <ul className="space-y-2 text-sm">

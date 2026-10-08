@@ -119,6 +119,8 @@ export interface EvalRun {
   duration_s: number
   llm_calls?: number
   error?: string
+  run_error?: string
+  infra_error?: string | null // provider/network failure: excluded from pass rates
   judge?: { average?: number; comment?: string }
 }
 export interface EvalResults { provider: string; model: string; updated_at: string; runs: EvalRun[] }
