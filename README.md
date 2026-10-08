@@ -395,10 +395,12 @@ provider in [`evals/report.md`](evals/report.md).
 | Video | Provider | Scenarios | Real duration | Speed-up |
 |---|---|---|---|---|
 | [demo-scripted.mp4](docs/demo/demo-scripted.mp4) (2:25) | scripted (offline replay) | `s1_overstock`, `x_supplier_rejects`, `s4_budget_override_rejected`, Evaluations tab | 2:25 | none |
-| [demo-gemini.mp4](docs/demo/demo-gemini.mp4) (1:34) | Gemini `gemini-3.7-flash`, live | `s1_overstock` with "Supplier rejects" injected: replan, approval, Andina confirms 144 | 5:39 | 10x on waiting stretches only |
+| [demo-gemini.mp4](docs/demo/demo-gemini.mp4) (1:34) | Gemini `gemini-3.7-flash`, live, before the evidence fix | `s1_overstock` with "Supplier rejects" injected: replan, approval, Andina confirms 144 | 5:39 | 10x on waiting stretches only |
 | [demo-groq.mp4](docs/demo/demo-groq.mp4) (1:09) | Groq `qwen/qwen3.8-27b`, live, after the evidence fix | `s1_overstock`: all eight required reads, MODIFY 240, auto-approved, confirmed | 6:04 | 10x on waiting stretches only |
 
-**The Gemini video predates an evidence fix; the Groq video was recorded after it.** When the first live videos
+**The Gemini video is the older recording, made before the evidence fix; the Groq video was re-recorded after it.**
+A Gemini re-record after the fix was attempted but skipped: `gemini-3.8-flash` returned HTTP 503 "high demand" at
+preflight. When the first live videos
 were recorded, the code's evidence checklist only required inventory, forecast and open POs before deciding, so both
 live models skipped supplier terms, budget and storage. Both still reached the correct result (Gemini: replan to
 Andina 144; Groq: MODIFY 240), and the decision stayed safe because `generate_options` applies MOQ, budget, storage
@@ -408,8 +410,6 @@ or transfer is refused until those reads are done, and since
 also needs a fresh `list_alternate_suppliers` ([D32](docs/decisions.md)). A live Gemini `s1_overstock` run after the
 fix read all eight required tools before deciding and completed with MODIFY 240, and the re-recorded Groq video
 shows the same: every required read before the decision, with no `MISSING_EVIDENCE` refusal.
-
-External video link: _to be added_
 
 The videos are recorded from the real UI and API by [`scripts/record_demo.py`](scripts/record_demo.py) (Playwright,
 captions drawn on screen): `make demo-video`. A real-model video is recorded only after `make check-providers`
