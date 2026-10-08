@@ -89,6 +89,8 @@ A real run from the UI, the CLI or `make eval-real` runs the same check first an
   `OPENAI_COMPAT_MODEL=qwen/qwen3.8-27b`. **Groq model availability depends on the account.**
   `llama-3.3-70b-versatile`, listed in Groq's docs, was not available to the tested free-tier key.
   `GET https://api.groq.com/openai/v1/models` shows yours. Any model with tool calling works.
+- **OpenAI key (paid):** from [platform.openai.com](https://platform.openai.com/api-keys). Preset for the same
+  `openai_compat` provider: `OPENAI_COMPAT_BASE_URL=https://api.openai.com/v1`, `OPENAI_COMPAT_MODEL=gpt-4.1-mini`.
 
 Real-model runs from the UI, the CLI and `make eval-real` share the same free-tier quota, so don't run them at the
 same time. Waiting is always bounded (`LLM_MAX_CALL_SECONDS`, `RUN_MAX_SECONDS`) and every retry appears on the run
@@ -395,27 +397,24 @@ provider in [`evals/report.md`](evals/report.md).
 | Video | Provider | Scenarios | Real duration | Speed-up |
 |---|---|---|---|---|
 | [demo-scripted.mp4](docs/demo/demo-scripted.mp4) (2:25) | scripted (offline replay) | `s1_overstock`, `x_supplier_rejects`, `s4_budget_override_rejected`, Evaluations tab | 2:25 | none |
-| [demo-gemini.mp4](docs/demo/demo-gemini.mp4) (1:34) | Gemini `gemini-3.7-flash`, live, before the evidence fix | `s1_overstock` with "Supplier rejects" injected: replan, approval, Andina confirms 144 | 5:39 | 10x on waiting stretches only |
-| [demo-groq.mp4](docs/demo/demo-groq.mp4) (1:09) | Groq `qwen/qwen3.8-27b`, live, after the evidence fix | `s1_overstock`: all eight required reads, MODIFY 240, auto-approved, confirmed | 6:04 | 10x on waiting stretches only |
-
-**The Gemini video is the older recording, made before the evidence fix; the Groq video was re-recorded after it.**
-A Gemini re-record after the fix was attempted but skipped: `gemini-3.8-flash` returned HTTP 503 "high demand" at
-preflight. When the first live videos
-were recorded, the code's evidence checklist only required inventory, forecast and open POs before deciding, so both
-live models skipped supplier terms, budget and storage. Both still reached the correct result (Gemini: replan to
-Andina 144; Groq: MODIFY 240), and the decision stayed safe because `generate_options` applies MOQ, budget, storage
-and cover in code, but the eval's information dimension would have failed them. Since [`cd590ec`](https://github.com/Shreyxpatil/Rappi-purchasing-agent/commit/cd590ec) a purchase
-or transfer is refused until those reads are done, and since
-[`4d9819c`](https://github.com/Shreyxpatil/Rappi-purchasing-agent/commit/4d9819c) a replan that excludes a supplier
-also needs a fresh `list_alternate_suppliers` ([D32](docs/decisions.md)). A live Gemini `s1_overstock` run after the
-fix read all eight required tools before deciding and completed with MODIFY 240, and the re-recorded Groq video
-shows the same: every required read before the decision, with no `MISSING_EVIDENCE` refusal.
+| [demo-openai.mp4](docs/demo/demo-openai.mp4) (1:14) | OpenAI `gpt-4.1-mini` (paid), live | `s1_overstock` with "Supplier rejects" injected: replan, Andina 144 approved and confirmed | 1:21 | 10x on waiting stretches only |
 
 The videos are recorded from the real UI and API by [`scripts/record_demo.py`](scripts/record_demo.py) (Playwright,
-captions drawn on screen): `make demo-video`. A real-model video is recorded only after `make check-providers`
-passes, and is kept only if the run completes with the expected result. Only its waiting stretches are sped up,
-and the step latencies on screen are the real ones. The Gemini video used `gemini-3.7-flash` because
-`gemini-3.8-flash` was answering `503 high demand` at the time; the timeline shows the provider retries it still hit.
+captions drawn on screen): `make demo-video`. A real-model video is kept only if the run completes with the expected
+result. Only its waiting stretches are sped up, and the step latencies on screen are the real ones. In the OpenAI
+video the provider dropdown reads "Groq": that is the UI's label for the `openai_compat` provider, which was pointed
+at OpenAI for this run (the corner label shows the real provider and model).
+
+**Live model testing**
+- **Scripted evals:** 51/51 runs pass.
+- **OpenAI (paid, `gpt-4.1-mini`):** verified live on the demo run above. Its first decision attempt was refused
+  with `MISSING_EVIDENCE`; it then read the missing tools, and every accepted decision had all required reads. Full
+  real-model evals were not run on it.
+- **Gemini (free tier):** individual live runs reached the correct result, including an `s1_overstock` run after the
+  evidence fix ([D32](docs/decisions.md)) with all required reads. The full real-model eval and a post-fix video
+  did not complete: the free quota was exhausted, or `gemini-3.8-flash` returned 503 "high demand".
+- **Groq (free tier):** live runs reached correct results, including a run after the evidence fix with all
+  required reads, but the full real-model eval could not complete because of free-tier rate limits.
 
 **Quick path (no key, about 1 s per run):** `docker compose up --build`, or `make run` after `cd frontend && npm install
 && npm run build`. Open **http://localhost:8000** and keep the provider on **scripted**. Every scenario below replays a
