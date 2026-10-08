@@ -13,7 +13,7 @@ It never produces a quantity, cost or date, and it can only act through tools be
 | Scenarios implemented end to end | S1 recommendation review, S2 partial fill, S3 demand shift, S4 binding constraints |
 | Test scenarios | 17 hand-computed fixtures in [`evals/scenarios/`](evals/scenarios/) |
 | Tests | 350+ pytest tests, no API key needed; scripted eval 51/51 runs |
-| Providers | scripted (offline, default), Gemini `gemini-3.8-flash`, any OpenAI-compatible API (Groq `qwen/qwen3.8-27b`) |
+| Providers | scripted (offline, default), Gemini `gemini-3.8-flash`, any OpenAI-compatible API via `openai_compat` (Groq `qwen/qwen3.8-27b`; OpenAI `gpt-4.1-mini`, paid) |
 
 ---
 
@@ -53,14 +53,16 @@ curl localhost:8000/api/approvals                      # the override request, 7
 
 ### Real models
 
-Both providers below were run live end to end on `s1_overstock`. Both reached the correct decision
-(MODIFY to 240, executed and confirmed).
+All three providers below were run live end to end on `s1_overstock` and reached the correct decision: Gemini and
+Groq MODIFY to 240, executed and confirmed; OpenAI, with a supplier rejection injected, replanned to Andina 144,
+approved and confirmed.
 
 | Provider | Setting | Measured full run (`s1_overstock`) | What limits it |
 |---|---|---|---|
 | scripted | `--provider scripted` | ~0.2 s | nothing |
 | Gemini `gemini-3.8-flash` | `--provider gemini` | ~2.5 min (8 calls, ~30k input tokens) | `LLM_MAX_RPM=8` pacing plus model latency at thinking level `low` |
-| Groq `qwen/qwen3.8-27b` | `--provider openai_compat` | ~4 min on the free tier | a free-tier cap of 8,000 tokens/min; each call itself takes well under a second, so a paid tier runs in seconds |
+| Groq `qwen/qwen3.8-27b` | `--provider openai_compat` | ~4 min on the free tier | a free-tier cap of 8,000 tokens/min; a paid tier removes the token cap (the measured paid OpenAI run took about 1.3 min including a replan) |
+| OpenAI `gpt-4.1-mini` (paid) | `--provider openai_compat` with the OpenAI preset | 1:21 with a supplier rejection injected, including the replan and approval (16 calls, ~83k input tokens) | paid tier, no free-tier token cap; client pacing (`LLM_MAX_RPM`, 20 for this run) |
 
 ```bash
 cp .env.example .env && chmod 600 .env       # then fill in the keys; .env is gitignored
@@ -121,9 +123,9 @@ In scripted mode use the `x_*` scenarios: a replayed trajectory only follows the
 | `GEMINI_API_KEY` | — | Gemini key (never logged or printed) |
 | `GEMINI_MODEL` | none, required for Gemini (`gemini-3.8-flash`) | Read from env, never hardcoded; the client refuses to start without it |
 | `GEMINI_THINKING_LEVEL` | `low` | `minimal` \| `low` \| `medium` \| `high`. The engine does the hard reasoning, so `low` saves quota and latency |
-| `OPENAI_COMPAT_BASE_URL` | none (`https://api.groq.com/openai/v1`) | Any OpenAI-compatible endpoint |
+| `OPENAI_COMPAT_BASE_URL` | none (Groq `https://api.groq.com/openai/v1`; OpenAI `https://api.openai.com/v1`) | Any OpenAI-compatible endpoint |
 | `OPENAI_COMPAT_API_KEY` | — | Key for that endpoint |
-| `OPENAI_COMPAT_MODEL` | none (`qwen/qwen3.8-27b`) | Model id (must support tool calling) |
+| `OPENAI_COMPAT_MODEL` | none (Groq `qwen/qwen3.8-27b`; OpenAI `gpt-4.1-mini`) | Model id (must support tool calling) |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | none (`claude-opus-5-5`) | Only checked by `make check-providers`; there is no Anthropic agent client yet |
 | `LLM_MAX_RPM` | `8` | Client-side pacing for real providers; 429s are retried with jittered backoff |
 | `LLM_MAX_CALL_SECONDS` | `300` | Most time one model call may spend waiting and retrying. A daily quota, or a provider retry delay longer than this, fails fast |
@@ -389,6 +391,7 @@ provider in [`evals/report.md`](evals/report.md).
 | Scripted | 51/51 runs; every applicable dimension at 100% |
 | Groq `qwen/qwen3.8-27b` (4 cases × 1 run) | 1/4 fully passed. The decision was right in 3/4: two runs skipped evidence the fixture requires, and one escalated instead of asking for the budget override. Nothing unsafe was ever persisted. |
 | Gemini `gemini-3.8-flash` | Did not complete in the eval: the daily free-tier quota was used up, reported as infrastructure, not as a model failure. A separate live run of `s1_overstock` did complete correctly (MODIFY 240). |
+| OpenAI `gpt-4.1-mini` (paid) | Demo run verified: replan, Andina 144 approved and confirmed; one `MISSING_EVIDENCE` refusal, then all required reads. Not included in the real-model eval. |
 
 ## Demo
 
@@ -419,7 +422,8 @@ at OpenAI for this run (the corner label shows the real provider and model).
 **Quick path (no key, about 1 s per run):** `docker compose up --build`, or `make run` after `cd frontend && npm install
 && npm run build`. Open **http://localhost:8000** and keep the provider on **scripted**. Every scenario below replays a
 recorded agent trajectory through the real engine, gate, database and feedback loop. To watch a model decide live,
-switch the provider to Gemini or Groq (about 2–4 min per run on free tiers).
+switch the provider to Gemini or Groq (about 2–4 min per run on free tiers), or to OpenAI through `openai_compat`
+(about 1–2 min per run on the paid tier).
 
 **1. A wrong recommendation (`s1_overstock`).** *Scenarios* tab → S1 → "Recommendation of 800 would overstock" → **Run**.
 
@@ -440,7 +444,7 @@ The run page opens and follows the agent live.
 - **Approval:** in the *Approvals* tab the request shows `ALTERNATE_SUPPLIER`. **Approve** it; the run resumes, the
   supplier confirms and the outcome check passes.
 - **Purchase orders:** one REJECTED PO from Alquería and one CONFIRMED PO from Andina, each with its full history.
-- **Live failure (real provider):** with Gemini or Groq, run `s1_overstock` with **"Supplier rejects"** selected.
+- **Live failure (real provider):** with Gemini, Groq or OpenAI, run `s1_overstock` with **"Supplier rejects"** selected.
   The model has to replan live.
 
 **3. Budget override, both answers (`s4_budget_binding`, then `s4_budget_override_rejected`).** The approval shows
@@ -477,6 +481,7 @@ The brief lists optional buyer problems. These are already handled by the same a
   - Groq's free tier allows 8,000 tokens/min and 200,000/day, and a run sends ~30k input tokens. So a run takes
     ~4 minutes, and about six runs exhaust the day.
   - Gemini's free tier is paced at 8 requests/min.
+  - The paid OpenAI run (`gpt-4.1-mini`) took ~1.3 min including a replan, vs ~4 min for a run on Groq's free tier.
   - Real-model evals are therefore one run per case on a four-case subset per provider: enough to show where
     judgement differs, not to estimate pass rates.
 - **Real models vary run to run.** Gemini runs at its default temperature, as Google advises for Gemini 3
