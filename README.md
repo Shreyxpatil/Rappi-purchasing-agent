@@ -73,6 +73,11 @@ make demo PROVIDER=openai_compat CASE=s2_partial_needs_alternate
   `llama-3.3-70b-versatile`, listed in Groq's docs, was not available to the tested free-tier key.
   `GET https://api.groq.com/openai/v1/models` shows yours. Any model with tool calling works.
 
+Real-model runs from the UI, the CLI and `make eval-real` share the same free-tier quota, so don't run them at the
+same time. Waiting is always bounded (`LLM_MAX_CALL_SECONDS`, `RUN_MAX_SECONDS`) and every retry appears on the run
+timeline. A network outage ends the run as `NETWORK`, and an exhausted quota as `LLM_QUOTA_EXHAUSTED`: both are
+infrastructure failures, never reported as a model failure.
+
 The Gemini free tier may use prompts to improve Google's products. That is acceptable here only because every SKU,
 supplier and number is mock data; production would use a paid tier (see [D24](docs/decisions.md)).
 
@@ -101,6 +106,8 @@ In scripted mode use the `x_*` scenarios: a replayed trajectory only follows the
 | `OPENAI_COMPAT_API_KEY` | — | Key for that endpoint |
 | `OPENAI_COMPAT_MODEL` | `qwen/qwen3.8-27b` | Model id (must support tool calling) |
 | `LLM_MAX_RPM` | `8` | Client-side pacing for real providers; 429s are retried with jittered backoff |
+| `LLM_MAX_CALL_SECONDS` | `300` | Most time one model call may spend waiting and retrying. A daily quota, or a provider retry delay longer than this, fails fast |
+| `RUN_MAX_SECONDS` | `1200` | Most active time one run may use (time waiting for an approval excluded); then it ends `RUN_TIMEOUT` |
 | `DATABASE_URL` | `sqlite:///data/app.db` | Optional; SQLite file, gitignored |
 
 ## Architecture
