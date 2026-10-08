@@ -24,6 +24,7 @@ from app.agent.persistence import Recorder, load_context
 from app.agent.validation import diff_against_intent
 from app.agent.states import ALLOWED_TOOLS, MAX_TURNS, REQUIRED_EVIDENCE, RunStatus, State
 from app.clock import clock_for
+from app.config import get_settings
 from app.engine.quality import data_blocks_decision
 from app.logs import RUN_ID
 from app.llm.base import LLMClient, LLMError, Message, ToolCall
@@ -58,8 +59,11 @@ class _Run:
 
 
 class PurchasingAgent:
-    def __init__(self, session: Session, llm: LLMClient, policy: Policy | None = None) -> None:
+    def __init__(self, session: Session, llm: LLMClient, policy: Policy | None = None,
+                 max_run_seconds: float | None = None, now=time.monotonic) -> None:
         self.session, self.llm, self.policy = session, llm, policy or get_policy()
+        self.max_run_seconds = max_run_seconds if max_run_seconds is not None else get_settings().run_max_seconds
+        self._now = now
 
     # ------------------------------------------------------------------ public API
 
@@ -79,7 +83,14 @@ class PurchasingAgent:
                     State.VALIDATE: self._validate, State.AWAIT_SUPPLIER: self._await_supplier,
                     State.VERIFY_OUTCOME: self._verify_outcome, State.REPLAN: self._replan_state,
                     State.REPORT: self._report}
+        start, used_before = self._now(), r.extra.get("active_s", 0.0)
         while run.status == RunStatus.RUNNING and r.state != State.DONE:
+            # Active time only: a pause for human approval does not count against the run's budget.
+            r.extra["active_s"] = round(used_before + self._now() - start, 1)
+            if r.extra["active_s"] > self.max_run_seconds:
+                self._fail(r, "RUN_TIMEOUT", f"the run used {r.extra['active_s']:.0f} s of its "
+                                             f"{self.max_run_seconds:.0f} s budget (RUN_MAX_SECONDS) in {r.state}")
+                break
             handlers[r.state](r)
             if r.extra.get("invalid_calls", 0) >= MAX_CONSECUTIVE_MALFORMED and r.state in MAX_TURNS:
                 r.extra["invalid_calls"] = 0

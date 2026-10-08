@@ -279,3 +279,27 @@ def test_partial_gap_covered_by_transfer_when_alternate_moq_overstocks(run_case)
     assert s.get(PurchaseOrder, "PO-2003").lines[0].qty_ordered == 250
     verify = next(st for st in run.steps if st.kind == "verification")
     assert verify.output["actual_end_levels"] == fx.expected.computed["projection_with_transfer"]
+
+
+def test_a_run_over_its_time_budget_ends_failed_with_run_timeout(run_case) -> None:
+    from app.agent.loop import PurchasingAgent
+    from app.llm.scripted import ScriptedClient
+
+    _, _, s, fx = run_case("s1_overstock", turns=[])
+    ticks = iter(range(0, 10_000, 100))  # every state step "takes" 100 s
+    agent = PurchasingAgent(s, ScriptedClient.for_case("s1_overstock"), max_run_seconds=250,
+                            now=lambda: float(next(ticks)))
+    run = agent.run(agent.start(fx.id, fx.trigger.model_dump()))
+    assert run.status == "FAILED"
+    err = next(st for st in run.steps if st.kind == "error")
+    assert err.name == "RUN_TIMEOUT" and "RUN_MAX_SECONDS" in err.output["message"]
+
+
+def test_time_waiting_for_approval_does_not_count(run_case) -> None:
+    agent, run, s, _ = run_case("s4_budget_binding")
+    assert run.status == "AWAITING_APPROVAL"
+    used = run.context["active_s"]
+    approval = s.scalars(select(Approval).filter_by(run_id=run.id)).one()
+    agent.max_run_seconds = used + 5  # a long human pause would blow a wall-clock budget, not an active one
+    agent.resolve_and_resume(run, approval.id, approve=True, decided_by="cm")
+    assert run.status == "COMPLETED"
