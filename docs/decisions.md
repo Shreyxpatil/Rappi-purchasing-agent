@@ -477,3 +477,17 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
 - **Alternative considered:** checking only the key (a models-list call). Rejected: it passes for a key without
   credits and for a model the key cannot use, which are exactly the failures seen.
 
+## D31. Demo videos are recorded by a script, against the real system
+
+- **Decision:** `scripts/record_demo.py` drives the real UI and API with Playwright (1440×900), on a fresh server
+  and database per video, and draws step captions and a provider label on screen. Scripted videos cost nothing
+  and replay the same way every time. A real-model video runs `make check-providers` first, and is kept only if
+  the run ends COMPLETED with the expected result; any failure deletes it, with no automatic retry. In a kept real
+  video only the waiting stretches are sped up (with a "sped up Nx" label); decisions, approvals and results play
+  at normal speed.
+- **Why:** A hand-recorded video cannot be re-made after a change and can hide a failed run. A script makes the
+  demo reproducible, and the keep-only-on-success rule means a video never shows a result the system did not
+  produce.
+- **Tooling:** Playwright and imageio-ffmpeg live in a separate `demo` dependency group, so neither the app, the
+  tests nor the Docker image depend on them.
+

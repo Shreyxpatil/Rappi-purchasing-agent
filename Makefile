@@ -1,6 +1,7 @@
-.PHONY: setup test demo eval eval-real check-providers run ui docker-up docker-down clean
+.PHONY: setup test demo eval eval-real check-providers demo-video run ui docker-up docker-down clean
 
 CASE ?= s1_overstock
+VIDEOS ?= scripted
 PROVIDER ?= scripted
 
 setup:            ## install Python 3.12 deps with uv
@@ -20,6 +21,11 @@ eval-real:        ## real-model evals: default subset x 1 run on Groq and Gemini
 
 check-providers:  ## preflight every provider with a key: model listed + one 5-token call. ONLY=gemini checks one
 	cd backend && uv run python -m app.llm.preflight $(ONLY)
+
+demo-video:       ## record docs/demo videos with Playwright: VIDEOS="scripted gemini groq" (real ones preflight first)
+	cd frontend && npm install && npm run build
+	uv run --group demo playwright install chromium
+	uv run --group demo python scripts/record_demo.py $(VIDEOS)
 
 run:              ## start the API on http://localhost:8000 (docs at /docs)
 	cd backend && uv run uvicorn app.main:create_app --factory --reload --port 8000
