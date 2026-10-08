@@ -8,6 +8,8 @@ from typing import Any
 EVALS = Path(__file__).resolve().parent
 RESULTS_DIR = EVALS / "results"
 REPORT = EVALS / "report.md"
+# Hand-written root-cause notes for real-model failures, keyed "<case>|<provider>|<run>".
+ROOT_CAUSES = EVALS / "root_causes.json"
 DIMS = ("decision", "information", "constraints", "action", "validation", "recovery")
 ORDER = {"scripted": 0, "gemini": 1, "openai_compat": 2}
 LABEL = {"scripted": "scripted", "gemini": "Gemini", "openai_compat": "Groq (OpenAI-compatible)"}
@@ -78,6 +80,7 @@ def write_report(results_dir: Path = RESULTS_DIR, report: Path = REPORT) -> Path
             lines.append(f"| `{r['case']}` | {LABEL.get(res['provider'])} | {r['judge']['average']} | "
                          f"{r['judge'].get('comment', '').replace('|', '/')} |")
 
+    notes = json.loads(ROOT_CAUSES.read_text()) if ROOT_CAUSES.exists() else {}
     failures = [(r, res) for r, res in rows if not r["passed"]]
     lines += ["", "## Failures", ""]
     if not failures:
@@ -85,5 +88,15 @@ def write_report(results_dir: Path = RESULTS_DIR, report: Path = REPORT) -> Path
     for r, res in failures:
         why = r.get("error") or "; ".join(f"**{k}**: {v}" for k, v in r["failures"].items())
         lines.append(f"- `{r['case']}` on {LABEL.get(res['provider'])} (run {r['run']}): {why}")
+        note = notes.get(f"{r['case']}|{res['provider']}|{r['run']}")
+        lines.append(f"  - *Root cause:* {note}" if note else "  - *Root cause:* not yet analysed.")
+
+    lines += ["", "## Limitations", "",
+              "- The narrative judge uses Gemini, which is also one of the evaluated providers, so its scores on "
+              "Gemini runs may be biased.",
+              "- Real-model runs are one run per case on a four-case subset (free-tier quotas): enough to show where "
+              "model judgement differs, not to estimate pass rates tightly.",
+              "- Scripted runs replay fixed trajectories: their 100% shows the system and graders work, not that a "
+              "model would choose the same way."]
     report.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return report
