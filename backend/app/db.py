@@ -1,7 +1,5 @@
 """Database engine and session helpers (SQLAlchemy 2.x, SQLite)."""
 
-from collections.abc import Iterator
-from contextlib import contextmanager
 from pathlib import Path
 
 from sqlalchemy import Engine, create_engine, event
@@ -42,15 +40,3 @@ def create_schema(engine: Engine) -> None:
 
     Base.metadata.create_all(engine)
 
-
-@contextmanager
-def session_scope(factory: sessionmaker[Session]) -> Iterator[Session]:
-    session = factory()
-    try:
-        yield session
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()

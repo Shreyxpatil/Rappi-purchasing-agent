@@ -398,17 +398,17 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
   - `POST /api/runs`, `GET /api/runs`, `GET /api/runs/{id}` (with the full step trace)
   - `GET /api/approvals`, `POST /api/approvals/{id}`
   - `GET /api/purchase-orders` (with status history)
-  - `GET /api/workspace`
+  - `GET /api/evals` (stored eval results)
 
   Starting a run seeds the scenario and returns `202` with the run id; the agent then runs in a background task
-  with its own session, committing each step, so the UI can poll the trace live. Answering an approval also
+  with its own session, committing each step, so the UI can poll the trace live (every 1.5 s). Answering an approval also
   returns `202` and resumes the run in the background. `app/runner.py` holds the start/continue logic, so the eval
   runner (P6) uses exactly the same path. A misconfigured provider is rejected with `400` *before* the workspace
   is reset.
 - **Safety in tests:** an autouse fixture gives every test settings that ignore `.env`. A developer's real key or
   `LLM_PROVIDER=gemini` can never make the test suite call a paid or rate-limited API.
 - **App factory:** `uvicorn app.main:create_app --factory`, so importing the module creates no database file.
-- **Why not WebSockets/SSE:** polling a run every second is enough for a demo, has no extra moving parts, and
+- **Why not WebSockets/SSE:** polling a run every 1.5 s is enough for a demo, has no extra moving parts, and
   works the same in scripted and real-LLM mode.
 
 ## D28. The feedback loop: validate, await the supplier, verify the outcome, replan

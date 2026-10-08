@@ -161,7 +161,6 @@ def _request_approval(ctx: ToolContext, gate: GateResult, action: dict[str, Any]
                         alternatives=_alternatives(ctx) if with_alternatives else [], requested_at=ctx.clock.now())
     ctx.session.add(approval)
     ctx.session.flush()
-    ctx.state.pending_approval_id = approval.id
     _audit(ctx, "APPROVAL_REQUESTED", "approval", str(approval.id), {"reasons": gate.reasons, "action": action})
     return approval
 
@@ -477,7 +476,6 @@ def resolve_approval(ctx: ToolContext, approval_id: int, approve: bool, decided_
         raise ToolError("INVALID_STATE", "approval is not pending", {"approval_id": approval_id})
     approval.status = "APPROVED" if approve else "REJECTED"
     approval.decided_at, approval.decided_by, approval.comment = ctx.clock.now(), decided_by, comment
-    ctx.state.pending_approval_id = None
     _audit(ctx, f"APPROVAL_{approval.status}", "approval", str(approval.id),
            {"reasons": approval.reasons, "comment": comment}, actor="human")
 

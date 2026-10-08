@@ -46,7 +46,6 @@ class RunState(BaseModel):
     validation_failures: int = 0
     replans: int = 0
     escalated: bool = False
-    pending_approval_id: int | None = None
 
 
 @dataclass

@@ -14,7 +14,7 @@ from app.fixtures import SupplierResponse, list_fixtures
 from app.llm.base import LLMError
 from app.config import REPO_ROOT
 from app.llm.scripted import SCRIPTS_DIR
-from app.models import AgentRun, Approval, PurchaseOrder, StockTransfer, Workspace
+from app.models import AgentRun, Approval, PurchaseOrder, StockTransfer
 from app.seed import CATALOG_PATH
 
 RESULTS_DIR = REPO_ROOT / "evals" / "results"
@@ -28,7 +28,7 @@ def get_session(request: Request):
         yield s
 
 
-# --------------------------------------------------------------------------- scenarios & workspace
+# --------------------------------------------------------------------------- scenarios
 
 
 @router.get("/scenarios")
@@ -40,12 +40,6 @@ def scenarios() -> list[dict[str, Any]]:
              "expected": {"outcome": f.expected.outcome, "qty_min": f.expected.qty_min, "qty_max": f.expected.qty_max},
              "scripted": (SCRIPTS_DIR / f"{f.id}.json").exists()}
             for f in list_fixtures()]
-
-
-@router.get("/workspace")
-def workspace(s: Session = Depends(get_session)) -> dict[str, Any]:
-    ws = s.get(Workspace, 1)
-    return {"scenario_id": ws.scenario_id, "as_of": ws.as_of} if ws else {"scenario_id": None}
 
 
 # --------------------------------------------------------------------------- runs

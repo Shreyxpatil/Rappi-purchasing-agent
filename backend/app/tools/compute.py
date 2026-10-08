@@ -316,7 +316,7 @@ def generate_options(ctx: ToolContext, args: BasisArgs) -> OptionsOut:
 
 
 def build_decision(ctx: ToolContext, option_id: str | None, investigate: bool, information_needed: list[str]):
-    """Used by the agent's propose_decision step (P4): the decision is built by the engine, not the model."""
+    """Used by the agent's propose_decision step: the decision is built by the engine, not the model."""
     options = current_options(ctx)
     chosen = None
     if option_id is not None:

@@ -17,9 +17,6 @@ from app.clock import Clock
 from app.models import POEvent, PurchaseOrder, Workspace
 from app.tools import data
 
-RESPONSE_TYPES = ("CONFIRMED", "PARTIAL", "REJECTED", "PRICE_CHANGE", "DELAYED")
-
-
 class SupplierEvent(BaseModel):
     po_id: str
     supplier_id: str

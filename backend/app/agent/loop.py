@@ -2,9 +2,9 @@
 the model works only inside INVESTIGATE (gather evidence, choose an option), EXECUTE (call action
 tools for the chosen option) and REPORT (explain the structured decision).
 
-    INTAKE -> INVESTIGATE -> DECIDE -> POLICY_GATE -> EXECUTE -> REPORT -> DONE
-                  ^                                     |
-                  +----- approval rejected (replan) ----+   (supplier-driven replans: P5)
+    INTAKE -> INVESTIGATE -> DECIDE -> POLICY_GATE -> EXECUTE -> VALIDATE -> AWAIT_SUPPLIER
+           -> VERIFY_OUTCOME -> REPORT -> DONE
+    VERIFY_OUTCOME failure or a rejected approval -> REPLAN -> INVESTIGATE (max replans, then escalate)
 """
 
 import json

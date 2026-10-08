@@ -39,10 +39,10 @@ def execute_message(option: dict[str, Any], preview: dict[str, Any], trigger: di
     return " ".join(lines)
 
 
-def report_message(decision: dict[str, Any], outcome: dict[str, Any]) -> str:
+def report_message(decision: dict[str, Any], facts: dict[str, Any]) -> str:
     compact = {k: decision[k] for k in ("outcome", "quantity", "option_id", "value", "confidence", "residual_risk",
                                         "information_needed")}
     compact["factors"] = [f"{f['name']}: {f['value']} ({f['effect']})" for f in decision["factors"]]
     return ("Write the explanation for the buyer in at most 120 words. Use only numbers that appear in this JSON; "
             "do not compute new ones. No tool calls.\n"
-            + json.dumps({"decision": compact, "execution": outcome}, separators=(",", ":")))
+            + json.dumps({"decision": compact, "execution": facts}, separators=(",", ":")))

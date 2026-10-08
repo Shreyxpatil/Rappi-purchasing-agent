@@ -63,11 +63,9 @@ def seed_workspace(session: Session, fx: ScenarioFixture) -> Clock:
             as_of=fx.as_of,
             seeded_at=fx.as_of,
             config={
-                "trigger": fx.trigger.model_dump(),
                 "supplier_behaviour": {
                     k: [r.model_dump(exclude_none=True) for r in v] for k, v in fx.supplier_behaviour.items()
                 },
-                "approval_responses": list(fx.approval_responses),
             },
         )
     )

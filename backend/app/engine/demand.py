@@ -1,7 +1,7 @@
 """Demand-shift detection: is a sales change real enough to act on?
 
 Deterministic rules, so the evidence is the same every time and the LLM only interprets it:
-  * elevated day   = sales > baseline x (1 + elevated_pct)
+  * elevated day   = sales > baseline x (1 + elevated_pct / 100)
   * bulk day       = the day's largest single order explains >= bulk_share of its excess over baseline
   * promo day      = inside an active promotion window
   * SUSTAINED_SHIFT needs >= sustained_min_days organic (not bulk, not promo) elevated days

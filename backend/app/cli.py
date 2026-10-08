@@ -21,7 +21,7 @@ from app.seed import seed_workspace
 
 
 def run_case(case_id: str, provider: str = "scripted", database_url: str = "sqlite://", script_variant: str = ""):
-    """Seed, run and answer approvals; returns (session, run). Shared with the eval runner (P6)."""
+    """Seed, run and answer approvals; returns (session, run). Shared with the eval runner."""
     fx = load_fixture(case_id)
     engine = make_engine(database_url)
     create_schema(engine)
