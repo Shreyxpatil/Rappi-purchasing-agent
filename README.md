@@ -12,7 +12,7 @@ It never produces a quantity, cost or date, and it can only act through tools be
 |---|---|
 | Scenarios implemented end to end | S1 recommendation review, S2 partial fill, S3 demand shift, S4 binding constraints |
 | Test scenarios | 17 hand-computed fixtures in [`evals/scenarios/`](evals/scenarios/) |
-| Tests | 320+ pytest tests, no API key needed; scripted eval 51/51 runs |
+| Tests | 350+ pytest tests, no API key needed; scripted eval 51/51 runs |
 | Providers | scripted (offline, default), Gemini `gemini-3.8-flash`, any OpenAI-compatible API (Groq `qwen/qwen3.8-27b`) |
 
 ---
@@ -97,19 +97,19 @@ In scripted mode use the `x_*` scenarios: a replayed trajectory only follows the
 
 ## Environment Variables
 
-| Variable | Default | Purpose |
+| Variable | Default (example in `.env.example`) | Purpose |
 |---|---|---|
 | `LLM_PROVIDER` | `scripted` | Default provider when none is passed (`scripted` \| `gemini` \| `openai_compat`). The API and CLI take a provider per run. |
 | `GEMINI_API_KEY` | — | Gemini key (never logged or printed) |
-| `GEMINI_MODEL` | `gemini-3.8-flash` | Read from env, never hardcoded; the client refuses to start without it |
+| `GEMINI_MODEL` | none, required for Gemini (`gemini-3.8-flash`) | Read from env, never hardcoded; the client refuses to start without it |
 | `GEMINI_THINKING_LEVEL` | `low` | `minimal` \| `low` \| `medium` \| `high`. The engine does the hard reasoning, so `low` saves quota and latency |
-| `OPENAI_COMPAT_BASE_URL` | `https://api.groq.com/openai/v1` | Any OpenAI-compatible endpoint |
+| `OPENAI_COMPAT_BASE_URL` | none (`https://api.groq.com/openai/v1`) | Any OpenAI-compatible endpoint |
 | `OPENAI_COMPAT_API_KEY` | — | Key for that endpoint |
-| `OPENAI_COMPAT_MODEL` | `qwen/qwen3.8-27b` | Model id (must support tool calling) |
+| `OPENAI_COMPAT_MODEL` | none (`qwen/qwen3.8-27b`) | Model id (must support tool calling) |
 | `LLM_MAX_RPM` | `8` | Client-side pacing for real providers; 429s are retried with jittered backoff |
 | `LLM_MAX_CALL_SECONDS` | `300` | Most time one model call may spend waiting and retrying. A daily quota, or a provider retry delay longer than this, fails fast |
 | `RUN_MAX_SECONDS` | `1200` | Most active time one run may use (time waiting for an approval excluded); then it ends `RUN_TIMEOUT` |
-| `DATABASE_URL` | `sqlite:///data/app.db` | Optional; SQLite file, gitignored |
+| `DATABASE_URL` | `data/app.db` in the repo root | Optional SQLAlchemy URL; the SQLite file is gitignored |
 
 ## Architecture
 
@@ -208,7 +208,7 @@ stateDiagram-v2
    persisted with its input, output and latency, and shown by `GET /api/runs/{id}`. A fixed scenario clock, seeded
    data, run-scoped idempotency keys and the scripted provider make runs repeatable.
 
-Every significant choice, with alternatives considered, is in [`docs/decisions.md`](docs/decisions.md) (D1–D28).
+Every significant choice, with alternatives considered, is in [`docs/decisions.md`](docs/decisions.md) (D1–D29).
 
 ## Agent Behaviour — design answers
 
@@ -359,6 +359,14 @@ uv run python -m evals.run_evals --provider openai_compat --case s1_overstock --
 Scripted runs replay a recorded trajectory, so they test the system: tools, engine, gate, feedback loop and
 graders. Real-model runs let the model make every choice, so they measure its judgement. Results are reported per
 provider in [`evals/report.md`](evals/report.md).
+
+**Latest results** (each failure has a root-cause note in the report):
+
+| Provider | Result |
+|---|---|
+| Scripted | 51/51 runs; every applicable dimension at 100% |
+| Groq `qwen/qwen3.8-27b` (4 cases × 1 run) | 1/4 fully passed. The decision was right in 3/4: two runs skipped evidence the fixture requires, and one escalated instead of asking for the budget override. Nothing unsafe was ever persisted. |
+| Gemini `gemini-3.8-flash` | Did not complete in the eval: the daily free-tier quota was used up, reported as infrastructure, not as a model failure. A separate live run of `s1_overstock` did complete correctly (MODIFY 240). |
 
 ## Demo
 

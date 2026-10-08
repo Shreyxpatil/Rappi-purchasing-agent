@@ -122,8 +122,8 @@ order        = ceil_to_case_pack(max(net, MOQ)), only when net > 0
   the chosen option predicted. If the prediction holds, the check passes, even when the option had a known stockout
   that a human accepted (for example by refusing a budget override). The run completes and the decision carries
   `residual_risk` (stockout day, unmet units). A replan happens only when reality differs from the prediction:
-  a new stockout, an earlier stockout, or cover above the maximum. An option a human rejected is removed for the
-  rest of the run.
+  a new stockout, an earlier stockout, or more units unmet. (Overstock is checked before acting by
+  `validate_po`, not re-checked here.) An option a human rejected is removed for the rest of the run.
 - **Alternatives:** An absolute "no stockout in horizon" check.
 - **Why:** An absolute check would turn a human's "no" into a loop. The agent would replan straight back into the
   over-budget option, or escalate a decision the human has just made. Comparing against the prediction keeps the
