@@ -188,6 +188,17 @@ class SupplierResponse(_Strict):
     days: int | None = None  # DELAYED: days added to the arrival date
     message: str = ""
 
+    @model_validator(mode="after")
+    def _fields_for_type(self) -> "SupplierResponse":
+        required = {"PARTIAL": "qty", "PRICE_CHANGE": "pct", "DELAYED": "days"}.get(self.type)
+        if required and getattr(self, required) is None:
+            raise ValueError(f"{self.type} needs `{required}`")
+        if self.type == "PARTIAL" and self.qty is not None and self.qty < 0:
+            raise ValueError("PARTIAL qty must be >= 0")
+        if self.type == "DELAYED" and self.days is not None and self.days <= 0:
+            raise ValueError("DELAYED days must be > 0")
+        return self
+
 
 class ExpectedPO(_Strict):
     id: str | None = None  # set when the PO already exists in the seed (e.g. acknowledged partial)

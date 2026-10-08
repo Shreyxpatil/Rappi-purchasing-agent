@@ -166,3 +166,9 @@ def test_a_new_run_is_refused_while_another_is_running(client) -> None:
 def test_scenario_id_is_never_used_as_a_path(client) -> None:
     for bad in ("../evals/scenarios/s1_overstock.json", "s1_overstock.json", "/etc/passwd"):
         assert client.post("/api/runs", json={"scenario_id": bad}).status_code == 404
+
+
+def test_incomplete_injected_supplier_responses_are_rejected_up_front(client) -> None:
+    for bad in ({"type": "PARTIAL"}, {"type": "PRICE_CHANGE"}, {"type": "DELAYED"}, {"type": "DELAYED", "days": 0}):
+        r = client.post("/api/runs", json={"scenario_id": "s1_overstock", "supplier_behaviour": {"SUP-ALQ": [bad]}})
+        assert r.status_code == 422, bad
