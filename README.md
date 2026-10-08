@@ -396,17 +396,18 @@ provider in [`evals/report.md`](evals/report.md).
 |---|---|---|---|---|
 | [demo-scripted.mp4](docs/demo/demo-scripted.mp4) (2:25) | scripted (offline replay) | `s1_overstock`, `x_supplier_rejects`, `s4_budget_override_rejected`, Evaluations tab | 2:25 | none |
 | [demo-gemini.mp4](docs/demo/demo-gemini.mp4) (1:34) | Gemini `gemini-3.7-flash`, live | `s1_overstock` with "Supplier rejects" injected: replan, approval, Andina confirms 144 | 5:39 | 10x on waiting stretches only |
-| [demo-groq.mp4](docs/demo/demo-groq.mp4) (0:47) | Groq `qwen/qwen3.8-27b`, live | `s1_overstock`: MODIFY 240, auto-approved, confirmed | 2:33 | 10x on waiting stretches only |
+| [demo-groq.mp4](docs/demo/demo-groq.mp4) (1:09) | Groq `qwen/qwen3.8-27b`, live, after the evidence fix | `s1_overstock`: all eight required reads, MODIFY 240, auto-approved, confirmed | 6:04 | 10x on waiting stretches only |
 
-**The live videos predate an evidence fix.** When they were recorded, the code's evidence checklist only required
-inventory, forecast and open POs before deciding, so both live models skipped supplier terms, budget and storage.
-Both still reached the correct result (Gemini: replan to Andina 144; Groq: MODIFY 240), and the decision stayed safe
-because `generate_options` applies MOQ, budget, storage and cover in code, but the eval's information dimension would
-have failed them. Since [`cd590ec`](https://github.com/Shreyxpatil/Rappi-purchasing-agent/commit/cd590ec) a purchase
+**The Gemini video predates an evidence fix; the Groq video was recorded after it.** When the first live videos
+were recorded, the code's evidence checklist only required inventory, forecast and open POs before deciding, so both
+live models skipped supplier terms, budget and storage. Both still reached the correct result (Gemini: replan to
+Andina 144; Groq: MODIFY 240), and the decision stayed safe because `generate_options` applies MOQ, budget, storage
+and cover in code, but the eval's information dimension would have failed them. Since [`cd590ec`](https://github.com/Shreyxpatil/Rappi-purchasing-agent/commit/cd590ec) a purchase
 or transfer is refused until those reads are done, and since
 [`4d9819c`](https://github.com/Shreyxpatil/Rappi-purchasing-agent/commit/4d9819c) a replan that excludes a supplier
 also needs a fresh `list_alternate_suppliers` ([D32](docs/decisions.md)). A live Gemini `s1_overstock` run after the
-fix read all eight required tools before deciding and completed with MODIFY 240.
+fix read all eight required tools before deciding and completed with MODIFY 240, and the re-recorded Groq video
+shows the same: every required read before the decision, with no `MISSING_EVIDENCE` refusal.
 
 External video link: _to be added_
 
