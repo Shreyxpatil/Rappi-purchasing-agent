@@ -363,3 +363,28 @@ def test_one_turn_with_some_malformed_parallel_calls_is_not_escalated(run_case) 
     _, run, _, _ = run_case("s1_overstock", [mixed] + turns[1:])
     assert run.status == "COMPLETED" and run.decision["quantity"] == 240
     assert not any(st.kind == "escalation" for st in run.steps)
+
+
+def test_choosing_escalate_is_reported_as_an_agent_escalation(run_case) -> None:
+    turns = script_turns("s1_overstock")[:2] + [
+        {"tool_calls": [{"name": "propose_decision", "args": {"option_id": "ESCALATE",
+                                                              "reasons": ["supplier relationship issue"]}}]},
+        {"text": "Escalated to a buyer."}]
+    _, run, _, _ = run_case("s1_overstock", turns)
+    esc = next(st for st in run.steps if st.kind == "escalation")
+    assert run.status == "ESCALATED" and esc.name == "AGENT_ESCALATED"
+    assert "supplier relationship issue" in esc.input["summary"]
+    assert run.decision["option_kind"] == "ESCALATE"
+
+
+def test_a_price_change_the_gate_refuses_escalates_instead_of_crashing(run_case, monkeypatch) -> None:
+    import app.agent.loop as loop
+    from app.tools.registry import ToolError
+
+    def refuse(*a, **k):
+        raise ToolError("ESCALATION_REQUIRED", "policy gate: VALIDATION_FAILED_TWICE", {})
+
+    monkeypatch.setattr(loop, "gate_price_change", refuse)
+    _, run, _, _ = run_case("x_price_change")
+    assert run.status == "ESCALATED"
+    assert next(st for st in run.steps if st.kind == "escalation").name == "ESCALATION_REQUIRED"

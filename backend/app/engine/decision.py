@@ -93,7 +93,7 @@ def build_decision(options: OptionSet, chosen: Option | None, *, investigate: bo
         outcome=outcome,
         quantity=chosen.qty if acting else 0,
         option_id=chosen.id if acting else None,
-        option_kind=chosen.kind if acting else "INVESTIGATE",
+        option_kind=chosen.kind if acting or (chosen is not None and chosen.kind == "ESCALATE") else "INVESTIGATE",
         supplier_id=chosen.supplier_id if acting else None,
         deliveries=chosen.deliveries if acting else [],
         value=chosen.value if acting else 0.0,

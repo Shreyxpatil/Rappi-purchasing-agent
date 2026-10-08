@@ -163,9 +163,12 @@ class PurchasingAgent:
         d = r.ctx.state.decision or {}
         r.rec.step("decision", d.get("outcome", "?"), output=d)
         option = decided_option(r.ctx)
-        if d.get("outcome") == "INVESTIGATE" or (option and option["kind"] == "ESCALATE"):
-            reason = "INSUFFICIENT_DATA" if d.get("outcome") == "INVESTIGATE" else "AGENT_ESCALATED"
-            self._escalate(r, reason, "Decision needs a human: " + "; ".join(d.get("information_needed") or []),
+        if d.get("outcome") == "INVESTIGATE":
+            # The model chose the ESCALATE option itself, or decided the data cannot support a decision.
+            explicit = d.get("option_kind") == "ESCALATE"
+            reason = "AGENT_ESCALATED" if explicit else "INSUFFICIENT_DATA"
+            why = (d.get("reasons") if explicit else d.get("information_needed")) or []
+            self._escalate(r, reason, "Decision needs a human: " + ("; ".join(why) or "no reason given"),
                            d.get("information_needed") or [])
             r.rec.transition(State.REPORT, reason)
         elif option is None or option["kind"] == "NO_ACTION":
@@ -259,7 +262,14 @@ class PurchasingAgent:
                 failures.append({"code": "PRICE_CHANGE_REFUSED", "supplier": po.supplier_id, "po_id": po.id})
                 self._exclude(r, po.supplier_id)
             elif po.status == "SUBMITTED" and last.type == "PRICE_CHANGE":
-                gate = gate_price_change(r.ctx, po, last.payload["proposed_unit_cost"])
+                try:
+                    gate = gate_price_change(r.ctx, po, last.payload["proposed_unit_cost"])
+                except ToolError as e:  # the gate refused outright (e.g. repeated blocks): a human decides
+                    r.rec.step("policy", "ESCALATE", {"po_id": po.id, "price_change": last.payload},
+                               {"code": e.code, "details": e.details}, ok=False)
+                    self._escalate(r, e.code, f"price change on {po.id} refused by the gate: {e.message}")
+                    r.rec.transition(State.REPORT, "price change refused by the gate")
+                    return
                 r.rec.step("policy", gate.verdict, {"po_id": po.id, "price_change": last.payload}, gate.model_dump())
                 if gate.verdict == "APPROVAL":
                     r.run.status = RunStatus.AWAITING_APPROVAL  # resumes here once a human answers
