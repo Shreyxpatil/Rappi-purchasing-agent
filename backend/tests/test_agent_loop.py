@@ -244,3 +244,15 @@ def test_supplier_outcomes_update_reliability(run_case) -> None:
     assert events["SUP-ALQ"] == {"before": 0.95, "after": fx.expected.computed["alq_reliability_after"]}
     assert events["SUP-ANDINA"] == {"before": 0.86, "after": 0.888}  # 0.8 x 0.86 + 0.2 x 1.0
     assert s.get(Supplier, "SUP-ALQ").reliability_score == 0.76
+
+
+def test_tool_steps_carry_measured_latency(run_case, monkeypatch) -> None:
+    import app.agent.loop as loop
+
+    real = loop.call_tool
+    monkeypatch.setattr(loop, "call_tool", lambda *a, **k: real(*a, **k).model_copy(update={"latency_ms": 42}))
+    _, run, _, _ = run_case("s1_overstock")
+    registry_tools = [st for st in run.steps if st.kind == "tool" and st.name not in ("propose_decision",
+                                                                                       "finish_execution")]
+    assert registry_tools and all(st.latency_ms == 42 for st in registry_tools)
+    assert all(st.latency_ms is not None and st.latency_ms >= 0 for st in run.steps)

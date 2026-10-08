@@ -130,7 +130,9 @@ class PurchasingAgent:
             if r.state != State.INVESTIGATE:
                 self._tool_result(r, call, _skipped())
             elif call.name == "propose_decision":
-                self._tool_result(r, call, self._propose(r, call))
+                start = time.perf_counter()
+                payload = self._propose(r, call)
+                self._tool_result(r, call, payload, latency_ms=int((time.perf_counter() - start) * 1000))
             else:
                 self._dispatch(r, call)
 
@@ -151,8 +153,10 @@ class PurchasingAgent:
     def _policy_gate(self, r: _Run) -> None:
         option = decided_option(r.ctx)
         assert option is not None
+        start = time.perf_counter()
         preview = preview_gate(r.ctx, option)
-        r.rec.step("policy", preview["verdict"], {"option_id": option["id"]}, preview)
+        r.rec.step("policy", preview["verdict"], {"option_id": option["id"]}, preview,
+                   latency_ms=int((time.perf_counter() - start) * 1000))
         if preview["verdict"] in ("BLOCK", "ESCALATE"):
             self._escalate(r, "POLICY_" + preview["verdict"], f"Gate refused {option['id']}: {preview['reasons']}")
             r.rec.transition(State.REPORT, f"gate {preview['verdict']}")
@@ -171,7 +175,9 @@ class PurchasingAgent:
             if r.state != State.EXECUTE or r.run.status != RunStatus.RUNNING:
                 self._tool_result(r, call, _skipped())
             elif call.name == "finish_execution":
-                self._tool_result(r, call, self._finish(r, call))
+                start = time.perf_counter()
+                payload = self._finish(r, call)
+                self._tool_result(r, call, payload, latency_ms=int((time.perf_counter() - start) * 1000))
             else:
                 payload = self._dispatch(r, call)
                 output = payload.get("output") or {}
@@ -457,6 +463,7 @@ class PurchasingAgent:
         return out
 
     def _dispatch(self, r: _Run, call: ToolCall) -> dict[str, Any]:
+        latency = 0
         if call.name not in ALLOWED_TOOLS.get(r.state, set()) or call.name in CONTROL_TOOLS:
             payload = _error("TOOL_NOT_ALLOWED_IN_STATE", f"{call.name} cannot be used in {r.state}",
                              {"allowed": sorted(ALLOWED_TOOLS.get(r.state, set()))})
@@ -465,14 +472,15 @@ class PurchasingAgent:
             if REGISTRY[call.name].kind == "act" and isinstance(args.get("idempotency_key"), str):
                 args["idempotency_key"] = f"run{r.run.id}:{args['idempotency_key']}"  # keys are scoped to the run
             res = call_tool(call.name, args, r.ctx)
+            latency = res.latency_ms
             payload = {"ok": res.ok, "output": res.output, "error": res.error}
             if res.ok and call.name not in r.extra["evidence"]:
                 r.extra["evidence"].append(call.name)
-        self._tool_result(r, call, payload)
+        self._tool_result(r, call, payload, latency_ms=latency)
         return payload
 
-    def _tool_result(self, r: _Run, call: ToolCall, payload: dict[str, Any]) -> None:
-        r.rec.step("tool", call.name, call.args, payload, ok=payload["ok"])
+    def _tool_result(self, r: _Run, call: ToolCall, payload: dict[str, Any], latency_ms: int = 0) -> None:
+        r.rec.step("tool", call.name, call.args, payload, ok=payload["ok"], latency_ms=latency_ms)
         if payload["ok"]:
             r.extra["invalid_calls"] = 0
         elif payload["error"]["code"] in MALFORMED:
