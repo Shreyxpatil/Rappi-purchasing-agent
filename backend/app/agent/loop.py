@@ -42,7 +42,9 @@ log = logging.getLogger("app.agent")
 
 # Errors that mean "the call itself was malformed", as opposed to business outcomes such as BLOCKED.
 MALFORMED = {"INVALID_ARGUMENTS", "UNKNOWN_TOOL", "TOOL_NOT_ALLOWED_IN_STATE", "NO_TOOL_CALL"}
-MAX_CONSECUTIVE_MALFORMED = 2  # the error goes back to the model once; the second strike fails the step
+# A turn is malformed when it made malformed calls and no successful one. The errors go back to the model
+# once; a second malformed turn in a row fails the step (D23).
+MAX_CONSECUTIVE_MALFORMED_TURNS = 2
 
 
 @dataclass
@@ -92,10 +94,16 @@ class PurchasingAgent:
                                              f"{self.max_run_seconds:.0f} s budget (RUN_MAX_SECONDS) in {r.state}")
                 break
             handlers[r.state](r)
-            if r.extra.get("invalid_calls", 0) >= MAX_CONSECUTIVE_MALFORMED and r.state in MAX_TURNS:
-                r.extra["invalid_calls"] = 0
-                self._escalate(r, "MALFORMED_TOOL_CALLS",
-                               f"the model sent {MAX_CONSECUTIVE_MALFORMED} malformed tool calls in a row in {r.state}")
+            turn = r.extra.pop("turn", None)
+            if turn is not None:  # a model turn just ran
+                if turn["ok"]:
+                    r.extra["invalid_turns"] = 0
+                elif turn["bad"]:
+                    r.extra["invalid_turns"] = r.extra.get("invalid_turns", 0) + 1
+            if r.extra.get("invalid_turns", 0) >= MAX_CONSECUTIVE_MALFORMED_TURNS and r.state in MAX_TURNS:
+                r.extra["invalid_turns"] = 0
+                self._escalate(r, "MALFORMED_TOOL_CALLS", f"the model sent {MAX_CONSECUTIVE_MALFORMED_TURNS} "
+                                                          f"malformed turns in a row in {r.state}")
                 r.rec.transition(State.REPORT, "malformed tool calls")
             r.rec.save(r.ctx.state, r.messages, r.extra)
         return run
@@ -130,7 +138,7 @@ class PurchasingAgent:
         r.ctx.state.trigger = trigger
         r.messages[:] = [Message(role="system", content=prompts.SYSTEM),
                          Message(role="user", content=prompts.trigger_message(trigger))]
-        r.extra.update(evidence=[], turns={}, invalid_calls=0, incomplete_finishes=0)
+        r.extra.update(evidence=[], turns={}, invalid_turns=0, incomplete_finishes=0)
         r.rec.step("intake", trigger["type"], trigger)
         r.rec.transition(State.INVESTIGATE)
 
@@ -524,10 +532,11 @@ class PurchasingAgent:
 
     def _tool_result(self, r: _Run, call: ToolCall, payload: dict[str, Any], latency_ms: int = 0) -> None:
         r.rec.step("tool", call.name, call.args, payload, ok=payload["ok"], latency_ms=latency_ms)
+        turn = r.extra.setdefault("turn", {"ok": False, "bad": False})
         if payload["ok"]:
-            r.extra["invalid_calls"] = 0
+            turn["ok"] = True
         elif payload["error"]["code"] in MALFORMED:
-            r.extra["invalid_calls"] = r.extra.get("invalid_calls", 0) + 1
+            turn["bad"] = True
         r.messages.append(Message(role="tool", name=call.name, tool_call_id=call.id,
                                   content=json.dumps(payload, separators=(",", ":"), default=str)))
         next_state = r.extra.pop("next_state", None)
@@ -538,7 +547,7 @@ class PurchasingAgent:
         """The model answered with text where a tool call was required: tell it once (counts as malformed)."""
         r.messages.append(Message(role="user", content=text))
         r.rec.step("nudge", r.state, {"text": text, "code": "NO_TOOL_CALL"}, ok=False)
-        r.extra["invalid_calls"] = r.extra.get("invalid_calls", 0) + 1
+        r.extra.setdefault("turn", {"ok": False, "bad": False})["bad"] = True
 
     def _escalate(self, r: _Run, reason: str, summary: str, info: list[str] | None = None) -> None:
         key = f"run{r.run.id}:escalate:{len(r.run.steps)}"

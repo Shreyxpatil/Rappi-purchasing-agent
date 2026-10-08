@@ -354,3 +354,12 @@ def test_a_discretionary_approval_request_pauses_the_run(run_case) -> None:
     assert approval.reasons == ["AGENT_REQUESTED", "NEW_SKU"]
     agent.resolve_and_resume(run, approval.id, approve=True, decided_by="cm")
     assert run.status == "COMPLETED"
+
+
+def test_one_turn_with_some_malformed_parallel_calls_is_not_escalated(run_case) -> None:
+    turns = script_turns("s1_overstock")
+    mixed = {"tool_calls": turns[0]["tool_calls"] + [{"name": "get_inventory", "args": {"node": "BOG-01"}},
+                                                     {"name": "buy_now", "args": {}}]}
+    _, run, _, _ = run_case("s1_overstock", [mixed] + turns[1:])
+    assert run.status == "COMPLETED" and run.decision["quantity"] == 240
+    assert not any(st.kind == "escalation" for st in run.steps)
