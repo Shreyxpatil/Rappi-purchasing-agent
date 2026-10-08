@@ -97,3 +97,31 @@ def test_scenarios_carry_primary_supplier_and_eval_results_are_served(client) ->
     evals = client.get("/api/evals").json()
     scripted = next(e for e in evals if e["provider"] == "scripted")
     assert len(scripted["runs"]) == 51 and "narrative" not in scripted["runs"][0]
+
+
+def test_a_crashing_run_task_marks_the_run_failed_with_a_trace_step(client, monkeypatch) -> None:
+    import app.agent.loop as loop
+
+    def boom(self, run):
+        raise RuntimeError("simulated bug in the agent")
+
+    monkeypatch.setattr(loop.PurchasingAgent, "run", boom)
+    run_id = client.post("/api/runs", json={"scenario_id": "s1_overstock"}).json()["run_id"]
+    run = client.get(f"/api/runs/{run_id}").json()
+    assert run["status"] == "FAILED" and run["error"] == "RuntimeError: simulated bug in the agent"
+    assert run["steps"][-1]["kind"] == "error" and run["steps"][-1]["name"] == "RuntimeError"
+
+
+def test_runs_left_running_by_a_dead_server_are_failed_at_startup(tmp_path) -> None:
+    from app.db import create_schema, make_engine, make_session_factory
+    from app.models import AgentRun
+    from app.runner import prepare_run
+
+    url = f"sqlite:///{tmp_path / 'app.db'}"
+    engine = make_engine(url)
+    create_schema(engine)
+    with make_session_factory(engine)() as s:
+        run_id = prepare_run(s, "s1_overstock", "scripted").id  # created, task never ran: like run #4
+    with TestClient(create_app(url)) as c:
+        run = c.get(f"/api/runs/{run_id}").json()
+    assert run["status"] == "FAILED" and run["steps"][-1]["name"] == "TASK_LOST"
