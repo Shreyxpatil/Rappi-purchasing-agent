@@ -1,0 +1,91 @@
+{
+ "case": "s3_one_off_outlier",
+ "notes": "Good agent: sees one bulk order behind the spike and keeps the plan.",
+ "turns": [
+  {
+   "tool_calls": [
+    {
+     "name": "get_sales_history",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    },
+    {
+     "name": "get_forecast",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    },
+    {
+     "name": "get_promotions",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    },
+    {
+     "name": "get_open_pos",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    },
+    {
+     "name": "get_inventory",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "detect_demand_shift",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "calculate_net_requirement",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    },
+    {
+     "name": "generate_options",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "propose_decision",
+     "args": {
+      "option_id": "NO_ACTION",
+      "reasons": [
+       "one elevated day explained by a single bulk order",
+       "current plan covers the horizon"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "text": "Rejected the 144-unit top-up. The demand signal is a one-off outlier (recent 68.57/day vs baseline 40/day, driven by a single bulk order), not a sustained shift. On the 40/day forecast, demand over 5 days is 200 plus 80 of safety stock against 150 available and 200 inbound, so the requirement is -70: PO-3002 already covers the horizon."
+  }
+ ]
+}

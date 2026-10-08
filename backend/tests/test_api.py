@@ -13,8 +13,7 @@ def client():
 def test_scenarios_list_marks_which_have_scripts(client) -> None:
     rows = client.get("/api/scenarios").json()
     assert len(rows) == 17
-    scripted = {r["id"] for r in rows if r["scripted"]}
-    assert {"s1_overstock", "s2_partial_needs_alternate", "s4_budget_binding"} <= scripted
+    assert all(r["scripted"] for r in rows)  # every scenario has a scripted trajectory
 
 
 def test_run_s1_scripted_end_to_end(client) -> None:
@@ -54,7 +53,6 @@ def test_bad_requests(client) -> None:
     assert client.post("/api/runs", json={"scenario_id": "nope"}).status_code == 404
     r = client.post("/api/runs", json={"scenario_id": "s1_overstock", "provider": "gemini"})
     assert r.status_code == 400 and r.json()["detail"]["code"] == "CONFIG"  # no key/model configured in tests
-    assert client.post("/api/runs", json={"scenario_id": "s3_promo_uplift"}).status_code == 400  # no script yet
     assert client.get("/api/runs/999").status_code == 404
 
 

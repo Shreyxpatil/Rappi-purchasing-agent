@@ -1,0 +1,131 @@
+{
+ "case": "s4_storage_binding",
+ "notes": "Good agent: the chilled room is full, so it splits one PO across two deliveries.",
+ "turns": [
+  {
+   "tool_calls": [
+    {
+     "name": "get_inventory",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "get_forecast",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "get_open_pos",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "get_supplier_terms",
+     "args": {
+      "supplier_id": "SUP-ALQ",
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "get_budget",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "get_storage_capacity",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "calculate_net_requirement",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "generate_options",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "propose_decision",
+     "args": {
+      "option_id": "SPLIT:SUP-ALQ:360@3+84@4",
+      "reasons": [
+       "only 360 fit on day 3",
+       "a second delivery of 84 fits on day 4 and keeps safety stock"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "create_po_draft",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L",
+      "supplier_id": "SUP-ALQ",
+      "deliveries": [
+       {
+        "day": 3,
+        "qty": 360
+       },
+       {
+        "day": 4,
+        "qty": 84
+       }
+      ],
+      "idempotency_key": "create"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "submit_po",
+     "args": {
+      "po_id": "$ref:create_po_draft.po_id",
+      "idempotency_key": "submit"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "finish_execution",
+     "args": {
+      "summary": "split PO submitted"
+     }
+    }
+   ]
+  },
+  {
+   "text": "Modified the recommendation of 450 to 444 units in two deliveries: the chilled room cannot take more than 360 on day 3, so 360 arrive on day 3 and 84 on day 4. Demand over the 5-day holiday horizon is 600 plus 240 of safety stock against 400 available, a requirement of 440 rounded to 444."
+  }
+ ]
+}

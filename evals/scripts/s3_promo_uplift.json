@@ -1,0 +1,133 @@
+{
+ "case": "s3_promo_uplift",
+ "notes": "Good agent: attributes the uplift to the promotion and tops up for the promo days only.",
+ "turns": [
+  {
+   "tool_calls": [
+    {
+     "name": "get_sales_history",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    },
+    {
+     "name": "get_forecast",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    },
+    {
+     "name": "get_promotions",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    },
+    {
+     "name": "get_open_pos",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    },
+    {
+     "name": "get_inventory",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "detect_demand_shift",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "calculate_net_requirement",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L",
+      "demand_basis": "promo_adjusted"
+     }
+    },
+    {
+     "name": "generate_options",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L",
+      "demand_basis": "promo_adjusted"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "propose_decision",
+     "args": {
+      "option_id": "BUY:SUP-FEMSA-MX:96",
+      "reasons": [
+       "all elevated days fall inside the 2x1 promotion",
+       "promo-adjusted requirement is 52, MOQ 96"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "create_po_draft",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L",
+      "supplier_id": "SUP-FEMSA-MX",
+      "deliveries": [
+       {
+        "day": 2,
+        "qty": 96
+       }
+      ],
+      "idempotency_key": "create"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "submit_po",
+     "args": {
+      "po_id": "$ref:create_po_draft.po_id",
+      "idempotency_key": "submit"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "finish_execution",
+     "args": {
+      "summary": "promo top-up of 96 submitted"
+     }
+    }
+   ]
+  },
+  {
+   "text": "The uplift is explained by the running promotion, not a trend (recent 51.43/day vs baseline 40/day). Planning on promo-adjusted demand gives 280 over 5 days plus 112 of safety stock against 140 available and 200 inbound: a requirement of 52, raised to the minimum order of 96, which was submitted and confirmed."
+  }
+ ]
+}

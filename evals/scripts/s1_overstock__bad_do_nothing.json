@@ -1,0 +1,86 @@
+{
+ "case": "s1_overstock",
+ "notes": "BAD: ignores the evidence and does nothing although a stockout is projected on day 4.",
+ "turns": [
+  {
+   "tool_calls": [
+    {
+     "name": "get_inventory",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "get_forecast",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "get_open_pos",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "get_supplier_terms",
+     "args": {
+      "supplier_id": "SUP-ALQ",
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "get_budget",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "get_storage_capacity",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "calculate_net_requirement",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    },
+    {
+     "name": "generate_options",
+     "args": {
+      "node": "BOG-01",
+      "sku": "LECHE-ALQ-1L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "propose_decision",
+     "args": {
+      "option_id": "NO_ACTION",
+      "reasons": [
+       "no need to buy"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "text": "Rejected the recommendation of 800 units; nothing was bought."
+  }
+ ]
+}

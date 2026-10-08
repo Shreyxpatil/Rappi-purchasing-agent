@@ -1,0 +1,117 @@
+{
+ "case": "s3_real_surge",
+ "notes": "Good agent: confirms a sustained shift, plans on the run-rate and tops up the open PO.",
+ "turns": [
+  {
+   "tool_calls": [
+    {
+     "name": "get_sales_history",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    },
+    {
+     "name": "get_forecast",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    },
+    {
+     "name": "get_promotions",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    },
+    {
+     "name": "get_open_pos",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    },
+    {
+     "name": "get_inventory",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "detect_demand_shift",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "calculate_net_requirement",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L",
+      "demand_basis": "recent_run_rate"
+     }
+    },
+    {
+     "name": "generate_options",
+     "args": {
+      "node": "CDMX-02",
+      "sku": "AGUA-CIEL-1L",
+      "demand_basis": "recent_run_rate"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "propose_decision",
+     "args": {
+      "option_id": "INCREASE:PO-3001:108",
+      "reasons": [
+       "7 of 7 days elevated, no promo, no bulk orders",
+       "PO-3001 can still absorb it"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "update_po_line",
+     "args": {
+      "po_id": "PO-3001",
+      "sku": "AGUA-CIEL-1L",
+      "new_qty": 308,
+      "reason": "sustained demand shift",
+      "idempotency_key": "increase"
+     }
+    }
+   ]
+  },
+  {
+   "tool_calls": [
+    {
+     "name": "finish_execution",
+     "args": {
+      "summary": "PO-3001 increased by 108"
+     }
+    }
+   ]
+  },
+  {
+   "text": "Sales have run at 64/day against a 40/day baseline for 7 straight days, with no promotion and no bulk orders: a sustained shift. On that run-rate, demand over 5 days is 320 plus 128 of safety stock against 150 available and 200 inbound, a requirement of 98 rounded to 108. PO-3001 was increased by 108 instead of placing a second order, and the supplier confirmed."
+  }
+ ]
+}
