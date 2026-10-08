@@ -393,6 +393,7 @@ provider in [`evals/report.md`](evals/report.md).
 |---|---|---|---|---|
 | [demo-scripted.mp4](docs/demo/demo-scripted.mp4) (2:25) | scripted (offline replay) | `s1_overstock`, `x_supplier_rejects`, `s4_budget_override_rejected`, Evaluations tab | 2:25 | none |
 | [demo-gemini.mp4](docs/demo/demo-gemini.mp4) (1:34) | Gemini `gemini-3.7-flash`, live | `s1_overstock` with "Supplier rejects" injected: replan, approval, Andina confirms 144 | 5:39 | 10x on waiting stretches only |
+| [demo-groq.mp4](docs/demo/demo-groq.mp4) (0:47) | Groq `qwen/qwen3.8-27b`, live | `s1_overstock`: MODIFY 240, auto-approved, confirmed | 2:33 | 10x on waiting stretches only |
 
 External video link: _to be added_
 
